@@ -1,6 +1,6 @@
 # Email Resume Bulk Sender
 
-This workspace contains a FastAPI backend and a Next.js frontend for sending bulk emails with resume attachments.
+This workspace contains a FastAPI backend and a Next.js frontend for sending bulk emails with resume attachments. 
 
 ## Setup
 

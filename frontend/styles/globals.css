@@ -50,16 +50,6 @@ input, select, button, textarea {
   margin-top: 0;
 }
 
-.salary {
-  background: #ecfdf5;
-  border: 1px solid #bbf7d0;
-  border-radius: 999px;
-  color: #166534;
-  flex: 0 0 auto;
-  font-weight: 700;
-  padding: 8px 12px;
-}
-
 .template-preview {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
@@ -80,6 +70,21 @@ input, select, button, textarea {
   color: #334155;
   font-size: 14px;
   padding: 6px 10px;
+}
+
+.focus-list {
+  background: #f8fafc;
+  border-radius: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+}
+
+.focus-list ul {
+  display: grid;
+  gap: 4px 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 8px 0 0;
+  padding-left: 18px;
 }
 
 .form-grid {
@@ -155,12 +160,11 @@ button.secondary {
     display: block;
   }
 
-  .salary {
-    display: inline-block;
-    margin-bottom: 8px;
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 
-  .form-grid {
+  .focus-list ul {
     grid-template-columns: 1fr;
   }
 }

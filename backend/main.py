@@ -63,6 +63,7 @@ class ResumeDetails(BaseModel):
     location: str = ""
     linkedin: str = ""
     github: str = ""
+    portfolio: str = ""
     education: str = ""
     graduation_year: str = ""
 

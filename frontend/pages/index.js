@@ -1,416 +1,664 @@
+/**
+ * index.js — Main page for the Email Resume Bulk Sender.
+ *
+ * Layout:
+ *   1. Header — app name and description
+ *   2. Profile banner — shows name/email/phone from .env
+ *   3. Tabs:
+ *      a. Mail Queue — add records, table with per-row Send, Send All
+ *      b. Resume Preview — role selector, skills, download PDF/LaTeX
+ *
+ * Workflow:
+ *   - User adds records (email, HR name, company, role, message type)
+ *   - No file upload — resume PDF is auto-generated per role
+ *   - "Send" on a row → sends that one email, removes row on success
+ *   - "Send All" → sends every row, removes all successful ones
+ *   - Failed rows stay in the table for retry
+ */
+
 import { useEffect, useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const messageOptions = [
-  { value: "initial", label: "Initial Message" },
-  { value: "followup", label: "Follow Up" },
-  { value: "interview", label: "Interview Invite" },
-];
+/* ── API base URL (configurable via .env.local) ─────────────────────────── */
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-const emptyResumeDetails = {
-  name: "",
-  email: "",
-  phone: "",
-  location: "",
-  linkedin: "",
-  github: "",
-  portfolio: "",
-  education: "",
-  graduation_year: "",
+/* ── Default form state for adding a new record ─────────────────────────── */
+const EMPTY_FORM = {
+  to_email: "",
+  hr_name: "",
+  company_name: "",
+  role_key: "",
+  message_type: "job_apply",
 };
 
 export default function Home() {
-  const [records, setRecords] = useState([]);
-  const [templates, setTemplates] = useState([]);
-  const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [resumeDetails, setResumeDetails] = useState(emptyResumeDetails);
-  const [form, setForm] = useState({ to_email: "", message_type: "initial", resume: null });
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
 
+  /* ── State ──────────────────────────────────────────────────────────────── */
+  const [profile, setProfile] = useState({});       // user profile from .env
+  const [roles, setRoles] = useState([]);            // available role templates
+  const [msgTypes, setMsgTypes] = useState([]);       // message template options
+  const [records, setRecords] = useState([]);         // queued mail records
+  const [form, setForm] = useState(EMPTY_FORM);       // add-record form
+  const [roleSkills, setRoleSkills] = useState([]);    // skills for selected role
+  const [preview, setPreview] = useState(null);        // message preview
+  const [status, setStatus] = useState("");            // status/notification bar
+  const [loading, setLoading] = useState(false);       // global loading flag
+  const [sending, setSending] = useState({});          // per-row sending state
+  const [tab, setTab] = useState("queue");             // active tab
+
+  /* ── Load initial data on mount ─────────────────────────────────────────── */
   useEffect(() => {
+    fetchProfile();
+    fetchRoles();
+    fetchMsgTypes();
     fetchRecords();
-    fetchTemplates();
   }, []);
 
-  const activeTemplate = templates.find((template) => template.key === selectedTemplate);
+  /* ── Derived counts for the stats bar ───────────────────────────────────── */
+  const totalCount = records.length;
 
+  /* ── Data fetching functions ────────────────────────────────────────────── */
+
+  /** Load user profile from backend (.env values). */
+  async function fetchProfile() {
+    try {
+      const res = await fetch(`${API}/profile`);
+      if (res.ok) setProfile(await res.json());
+    } catch { /* profile display is optional */ }
+  }
+
+  /** Load all available role templates. */
+  async function fetchRoles() {
+    try {
+      const res = await fetch(`${API}/roles`);
+      const data = await res.json();
+      setRoles(data);
+      if (data.length) setForm(f => ({ ...f, role_key: data[0].key }));
+    } catch {
+      setStatus("Cannot load roles. Is the backend running?");
+    }
+  }
+
+  /** Load available message template types. */
+  async function fetchMsgTypes() {
+    try {
+      const res = await fetch(`${API}/message-templates`);
+      if (res.ok) setMsgTypes(await res.json());
+    } catch { /* fallback to empty */ }
+  }
+
+  /** Load all queued records from the database. */
   async function fetchRecords() {
     try {
-      const response = await fetch(`${API_URL}/records`);
-      const data = await response.json();
-      setRecords(data);
-    } catch (error) {
-      setStatus("Unable to load records. Is the backend running?");
+      const res = await fetch(`${API}/records`);
+      if (res.ok) setRecords(await res.json());
+    } catch {
+      setStatus("Cannot load records. Is the backend running?");
     }
   }
 
-  async function fetchTemplates() {
+  /** Load categorized skills for a selected role. */
+  async function fetchSkills(roleKey) {
+    if (!roleKey) { setRoleSkills([]); return; }
     try {
-      const response = await fetch(`${API_URL}/resume-templates`);
-      const data = await response.json();
-      setTemplates(data);
-      if (data.length) {
-        setSelectedTemplate(data[0].key);
-      }
-    } catch (error) {
-      setStatus("Unable to load resume templates. Is the backend running?");
-    }
+      const res = await fetch(`${API}/roles/${roleKey}/skills`);
+      if (res.ok) setRoleSkills(await res.json());
+    } catch { setRoleSkills([]); }
   }
 
-  async function downloadLatexResume(event) {
-    event.preventDefault();
-    if (!selectedTemplate) {
-      setStatus("Please choose a resume role first.");
-      return;
-    }
-
-    setLoading(true);
-    setStatus("Generating LaTeX resume...");
+  /** Preview the composed email message. */
+  async function fetchPreview() {
     try {
-      const response = await fetch(`${API_URL}/resume-templates/${selectedTemplate}/latex`, {
+      const res = await fetch(`${API}/message-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(resumeDetails),
+        body: JSON.stringify({
+          message_type: form.message_type,
+          hr_name: form.hr_name,         // empty → "Sir/Madam"
+          company_name: form.company_name, // empty → omitted
+          role_key: form.role_key,
+        }),
       });
-      const latex = await response.text();
-      if (!response.ok) {
-        throw new Error(latex || "Failed to generate LaTeX resume.");
-      }
-      const blob = new Blob([latex], { type: "application/x-tex" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const fileName = `${selectedTemplate}_resume.tex`;
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setStatus(`Downloaded ${fileName}.`);
-    } catch (error) {
-      setStatus(error.message);
-    } finally {
-      setLoading(false);
-    }
+      if (res.ok) setPreview(await res.json());
+    } catch { setPreview(null); }
   }
 
-  async function createRecord(event) {
-    event.preventDefault();
-    if (!form.to_email || !form.resume) {
-      setStatus("Please enter an email and choose a resume file.");
+  /* ── Form handlers ──────────────────────────────────────────────────────── */
+
+  /** Update form field and load skills when role changes. */
+  function updateForm(field, value) {
+    setForm(f => ({ ...f, [field]: value }));
+    if (field === "role_key") fetchSkills(value);
+  }
+
+  /** Add a new record to the mail queue. */
+  async function addRecord(e) {
+    e.preventDefault();
+
+    // Validate required fields
+    if (!form.to_email) {
+      setStatus("Please enter a recipient email address.");
+      return;
+    }
+    if (!form.role_key) {
+      setStatus("Please select a target role.");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("to_email", form.to_email);
-    formData.append("message_type", form.message_type);
-    formData.append("resume", form.resume);
-
     setLoading(true);
-    setStatus("Creating record...");
+    setStatus("Adding record...");
     try {
-      const response = await fetch(`${API_URL}/records`, {
+      const res = await fetch(`${API}/records`, {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to_email: form.to_email,
+          hr_name: form.hr_name,         // empty → "Sir/Madam" on backend
+          company_name: form.company_name, // empty → omitted from email
+          role_key: form.role_key,
+          message_type: form.message_type,
+        }),
       });
-      if (!response.ok) {
-        const body = await response.json();
-        throw new Error(body.detail || "Failed to create record.");
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Failed to add record.");
       }
-      setForm({ to_email: "", message_type: "initial", resume: null });
+      // Reset form but keep role and message type for convenience
+      setForm(f => ({ ...EMPTY_FORM, role_key: f.role_key, message_type: f.message_type }));
+      setPreview(null);
       fetchRecords();
-      setStatus("Record created successfully.");
-      document.getElementById("resume-file").value = "";
-    } catch (error) {
-      setStatus(error.message);
+      setStatus("Record added to queue.");
+    } catch (err) {
+      setStatus(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  async function executeAll() {
-    if (!records.length) {
-      setStatus("No records available to execute.");
-      return;
-    }
-    setLoading(true);
-    setStatus("Executing bulk send...");
+  /* ── Send handlers ──────────────────────────────────────────────────────── */
+
+  /**
+   * Send a single record's email.
+   * On success: row is removed from the table.
+   * On failure: row stays, error message is shown.
+   */
+  async function sendOne(id) {
+    setSending(s => ({ ...s, [id]: true }));
+    setStatus("Sending...");
     try {
-      const response = await fetch(`${API_URL}/execute`, { method: "POST" });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.detail || "Execute request failed.");
+      const res = await fetch(`${API}/records/${id}/send`, { method: "POST" });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.detail || "Send failed.");
+      if (result.failed > 0) {
+        setStatus(`Failed: ${result.errors[0]?.error || "Unknown error"}`);
+      } else {
+        setStatus("Email sent and record removed.");
       }
-      setStatus(`Sent ${result.sent} emails, failed ${result.failed}.`);
       fetchRecords();
-    } catch (error) {
-      setStatus(error.message);
+    } catch (err) {
+      setStatus(err.message);
+    } finally {
+      setSending(s => ({ ...s, [id]: false }));
+    }
+  }
+
+  /**
+   * Send ALL queued records.
+   * Successful records are auto-deleted. Failed ones stay for retry.
+   */
+  async function sendAll() {
+    if (!totalCount) { setStatus("No records to send."); return; }
+    setLoading(true);
+    setStatus("Sending all emails...");
+    try {
+      const res = await fetch(`${API}/send-all`, { method: "POST" });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.detail || "Send failed.");
+
+      // Build status message
+      let msg = `Done! Sent: ${result.sent}`;
+      if (result.failed > 0) msg += `, Failed: ${result.failed} (check table)`;
+      setStatus(msg);
+      fetchRecords();
+    } catch (err) {
+      setStatus(err.message);
     } finally {
       setLoading(false);
     }
   }
 
+  /** Delete a single record without sending. */
   async function deleteRecord(id) {
-    setLoading(true);
-    setStatus("Removing record...");
     try {
-      const response = await fetch(`${API_URL}/records/${id}`, { method: "DELETE" });
-      if (!response.ok) {
-        const body = await response.json();
-        throw new Error(body.detail || "Failed to delete record.");
-      }
+      await fetch(`${API}/records/${id}`, { method: "DELETE" });
       fetchRecords();
       setStatus("Record removed.");
-    } catch (error) {
-      setStatus(error.message);
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  /** Clear all records from the queue. */
+  async function clearAll() {
+    try {
+      await fetch(`${API}/records`, { method: "DELETE" });
+      fetchRecords();
+      setStatus("All records cleared.");
+    } catch (err) {
+      setStatus(err.message);
+    }
+  }
+
+  /* ── Resume download (Preview tab) ──────────────────────────────────────── */
+
+  /** Download the auto-generated PDF resume for a role. */
+  function downloadPDF(roleKey) {
+    window.open(`${API}/resume/${roleKey}/pdf`, "_blank");
+  }
+
+  /** Download the auto-generated LaTeX resume for a role. */
+  function downloadLatex(roleKey) {
+    window.open(`${API}/resume/${roleKey}/latex`, "_blank");
+  }
+
+  /* ── Resume cache status and regeneration ────────────────────────────────── */
+  const [cacheStatus, setCacheStatus] = useState(null);
+
+  async function fetchCacheStatus() {
+    try {
+      const res = await fetch(`${API}/resumes/status`);
+      if (res.ok) setCacheStatus(await res.json());
+    } catch { /* optional */ }
+  }
+
+  useEffect(() => { fetchCacheStatus(); }, []);
+
+  /** Regenerate all resume PDFs (after .env profile update). */
+  async function regenerateResumes() {
+    setLoading(true);
+    setStatus("Regenerating all resume PDFs...");
+    try {
+      const res = await fetch(`${API}/resumes/generate`, { method: "POST" });
+      const data = await res.json();
+      setStatus(data.detail);
+      fetchCacheStatus();
+    } catch (err) {
+      setStatus(err.message);
     } finally {
       setLoading(false);
     }
   }
 
+  /* ── Active template for preview tab ────────────────────────────────────── */
+  const [previewRole, setPreviewRole] = useState("");
+  useEffect(() => {
+    if (roles.length && !previewRole) setPreviewRole(roles[0].key);
+  }, [roles]);
+  const activeRole = roles.find(r => r.key === previewRole);
+
+  /* ── Render ─────────────────────────────────────────────────────────────── */
   return (
     <main>
-      <div className="card">
-        <h1>Resume Generator & Bulk Sender</h1>
-        <p>Pick a role, fill basic details, download a ready LaTeX resume, then attach any resume file for bulk email sending.</p>
-      </div>
 
-      {status ? <div className="status">{status}</div> : null}
+      {/* ── App header ─────────────────────────────────────────────── */}
+      <header className="app-header">
+        <h1>Resume Mailer</h1>
+        <p>Add HR emails to the table, select a role and message type, then send all with one click.</p>
+      </header>
 
-      <div className="card">
-        <div className="section-heading">
-          <div>
-            <h2>Create dummy LaTeX resume</h2>
-            <p>ATS skills, job-focused projects, summary, experience, certifications, and achievements are already filled for each role.</p>
-          </div>
+      {/* ── Profile banner — shows who is sending ──────────────────── */}
+      {profile.name && (
+        <div className="profile-banner">
+          <strong>{profile.name}</strong>
+          <span>{[profile.email, profile.phone].filter(Boolean).join(" | ")}</span>
+          <span className="profile-hint">Edit .env to change your details</span>
         </div>
+      )}
 
-        <form onSubmit={downloadLatexResume}>
+      {/* ── Status notification bar ────────────────────────────────── */}
+      {status && (
+        <div className="status">
+          {status}
+          <button className="status-close" onClick={() => setStatus("")}>x</button>
+        </div>
+      )}
+
+      {/* ── Tab navigation ─────────────────────────────────────────── */}
+      <nav className="tabs">
+        <button
+          className={tab === "queue" ? "tab active" : "tab"}
+          onClick={() => setTab("queue")}
+        >
+          Mail Queue
+          {totalCount > 0 && <span className="tab-badge">{totalCount}</span>}
+        </button>
+        <button
+          className={tab === "resume" ? "tab active" : "tab"}
+          onClick={() => setTab("resume")}
+        >
+          Resume Preview
+        </button>
+      </nav>
+
+      {/* ================================================================ */}
+      {/* TAB: Mail Queue                                                  */}
+      {/* ================================================================ */}
+      {tab === "queue" && (
+        <>
+          {/* ── Add Record Form ────────────────────────────────────── */}
+          <div className="card">
+            <h2>Add Email Record</h2>
+            <p className="subtitle">
+              Fill in HR details, pick a role and message template.
+              Resume PDF is auto-generated — no file upload needed.
+            </p>
+
+            <form onSubmit={addRecord}>
+              <div className="form-grid">
+
+                {/* Recipient email — required */}
+                <label>
+                  Recipient Email *
+                  <input
+                    type="email"
+                    value={form.to_email}
+                    onChange={e => updateForm("to_email", e.target.value)}
+                    placeholder="hr@company.com"
+                    required
+                  />
+                </label>
+
+                {/* HR name — leave empty for "Dear Sir/Madam" */}
+                <label>
+                  HR / Contact Name
+                  <input
+                    type="text"
+                    value={form.hr_name}
+                    onChange={e => updateForm("hr_name", e.target.value)}
+                    placeholder="Leave empty for Dear Sir/Madam"
+                  />
+                </label>
+
+                {/* Company name — optional, omitted from email if empty */}
+                <label>
+                  Company Name (optional)
+                  <input
+                    type="text"
+                    value={form.company_name}
+                    onChange={e => updateForm("company_name", e.target.value)}
+                    placeholder="Optional — skipped if empty"
+                  />
+                </label>
+
+                {/* Role dropdown — determines which resume to generate */}
+                <label>
+                  Target Role *
+                  <select
+                    value={form.role_key}
+                    onChange={e => updateForm("role_key", e.target.value)}
+                  >
+                    <option value="">-- Select Role --</option>
+                    {roles.map(r => (
+                      <option key={r.key} value={r.key}>{r.title}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Message template dropdown */}
+                <label>
+                  Message Template
+                  <select
+                    value={form.message_type}
+                    onChange={e => updateForm("message_type", e.target.value)}
+                  >
+                    {msgTypes.map(mt => (
+                      <option key={mt.key} value={mt.key}>{mt.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* ── Skills panel — shows top skills for selected role ── */}
+              {roleSkills.length > 0 && (
+                <div className="skills-panel">
+                  <strong>Top Skills for This Role</strong>
+                  <div className="skills-grid">
+                    {roleSkills.map(cat => (
+                      <div key={cat.category} className="skill-category">
+                        <span className="cat-label">{cat.category}</span>
+                        <div className="skill-chips">
+                          {cat.skills.map(s => (
+                            <span key={s} className="chip">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Action buttons ────────────────────────────────────── */}
+              <div className="actions">
+                <button className="btn-primary" type="submit" disabled={loading}>
+                  Add to Queue
+                </button>
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={fetchPreview}
+                  disabled={loading}
+                >
+                  Preview Message
+                </button>
+              </div>
+            </form>
+
+            {/* ── Message preview panel ───────────────────────────────── */}
+            {preview && (
+              <div className="preview-panel">
+                <h3>Email Preview</h3>
+                <div className="preview-subject">
+                  <strong>Subject:</strong> {preview.subject}
+                </div>
+                <pre className="preview-body">{preview.body}</pre>
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => setPreview(null)}
+                >
+                  Close Preview
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Mail Queue Table ────────────────────────────────────── */}
+          <div className="card">
+            <div className="queue-header">
+              <div>
+                <h2>Mail Queue</h2>
+                <p className="subtitle">
+                  {totalCount} record(s) waiting.
+                  Sent records are auto-removed from this table.
+                </p>
+              </div>
+              <div className="actions">
+                <button
+                  className="btn-send-all"
+                  onClick={sendAll}
+                  disabled={loading || !totalCount}
+                >
+                  Send All ({totalCount})
+                </button>
+                {totalCount > 0 && (
+                  <button
+                    className="btn-secondary"
+                    onClick={clearAll}
+                    disabled={loading}
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {totalCount > 0 ? (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Email</th>
+                      <th>HR Name</th>
+                      <th>Company</th>
+                      <th>Role</th>
+                      <th>Message</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((r, i) => {
+                      const roleName = roles.find(
+                        t => t.key === r.role_key
+                      )?.title || r.role_key;
+                      const msgLabel = msgTypes.find(
+                        m => m.key === r.message_type
+                      )?.label || r.message_type;
+                      const isSending = sending[r.id];
+
+                      return (
+                        <tr key={r.id} className={isSending ? "row-sending" : ""}>
+                          <td className="cell-num">{i + 1}</td>
+                          <td className="cell-email">{r.to_email}</td>
+                          <td>{r.hr_name || "Sir/Madam"}</td>
+                          <td>{r.company_name || "—"}</td>
+                          <td><span className="role-tag">{roleName}</span></td>
+                          <td>{msgLabel}</td>
+                          <td className="cell-actions">
+                            <button
+                              className="btn-send"
+                              onClick={() => sendOne(r.id)}
+                              disabled={isSending || loading}
+                            >
+                              {isSending ? "Sending..." : "Send"}
+                            </button>
+                            <button
+                              className="btn-delete"
+                              onClick={() => deleteRecord(r.id)}
+                              disabled={isSending || loading}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="empty-state">
+                No records in queue. Add emails above and hit
+                &quot;Send All&quot; to deliver.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ================================================================ */}
+      {/* TAB: Resume Preview                                              */}
+      {/* ================================================================ */}
+      {tab === "resume" && (
+        <div className="card">
+          <h2>Resume Preview & Download</h2>
+          <p className="subtitle">
+            Select a role to see its skills and focus areas.
+            Download the auto-generated PDF or LaTeX resume.
+            Your details from .env are used automatically.
+          </p>
+
+          {/* ── Role selector ─────────────────────────────────────────── */}
           <label>
-            Resume role
-            <select value={selectedTemplate} onChange={(event) => setSelectedTemplate(event.target.value)}>
-              {templates.map((template) => (
-                <option key={template.key} value={template.key}>
-                  {template.title}
-                </option>
+            Role
+            <select
+              value={previewRole}
+              onChange={e => setPreviewRole(e.target.value)}
+            >
+              {roles.map(r => (
+                <option key={r.key} value={r.key}>{r.title}</option>
               ))}
             </select>
           </label>
 
-          {activeTemplate ? (
-            <div className="template-preview">
-              <strong>{activeTemplate.title}</strong>
-              <p>{activeTemplate.summary}</p>
-              <div className="skill-list">
-                {activeTemplate.skills.map((skill) => (
-                  <span key={skill}>{skill}</span>
+          {/* ── Role detail card ──────────────────────────────────────── */}
+          {activeRole && (
+            <div className="template-detail">
+              <strong>{activeRole.title}</strong>
+              <p>{activeRole.summary}</p>
+
+              {/* Skills */}
+              <div className="skill-chips">
+                {activeRole.skills.map(s => (
+                  <span key={s} className="chip">{s}</span>
                 ))}
               </div>
-              {activeTemplate.focus?.length ? (
+
+              {/* Focus areas */}
+              {activeRole.focus?.length > 0 && (
                 <div className="focus-list">
-                  <strong>Selection focus</strong>
+                  <strong>Interview Focus Areas</strong>
                   <ul>
-                    {activeTemplate.focus.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
+                    {activeRole.focus.map(f => <li key={f}>{f}</li>)}
                   </ul>
                 </div>
-              ) : null}
+              )}
             </div>
-          ) : null}
+          )}
 
-          <div className="form-grid">
-            <label>
-              Full name
-              <input
-                type="text"
-                value={resumeDetails.name}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, name: event.target.value })}
-                placeholder="Your Name"
-              />
-            </label>
-
-            <label>
-              Email
-              <input
-                type="email"
-                value={resumeDetails.email}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, email: event.target.value })}
-                placeholder="you@example.com"
-              />
-            </label>
-
-            <label>
-              Phone
-              <input
-                type="tel"
-                value={resumeDetails.phone}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, phone: event.target.value })}
-                placeholder="+91 98765 43210"
-              />
-            </label>
-
-            <label>
-              Location
-              <input
-                type="text"
-                value={resumeDetails.location}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, location: event.target.value })}
-                placeholder="Bengaluru, India"
-              />
-            </label>
-
-            <label>
-              LinkedIn
-              <input
-                type="text"
-                value={resumeDetails.linkedin}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, linkedin: event.target.value })}
-                placeholder="linkedin.com/in/your-profile"
-              />
-            </label>
-
-            <label>
-              GitHub
-              <input
-                type="text"
-                value={resumeDetails.github}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, github: event.target.value })}
-                placeholder="github.com/your-username"
-              />
-            </label>
-
-            <label>
-              Portfolio
-              <input
-                type="text"
-                value={resumeDetails.portfolio}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, portfolio: event.target.value })}
-                placeholder="yourportfolio.com"
-              />
-            </label>
-
-            <label>
-              Education
-              <input
-                type="text"
-                value={resumeDetails.education}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, education: event.target.value })}
-                placeholder="B.Tech CSE, Your College"
-              />
-            </label>
-
-            <label>
-              Graduation year
-              <input
-                type="text"
-                value={resumeDetails.graduation_year}
-                onChange={(event) => setResumeDetails({ ...resumeDetails, graduation_year: event.target.value })}
-                placeholder="2026"
-              />
-            </label>
-          </div>
-
+          {/* ── Download buttons ──────────────────────────────────────── */}
           <div className="actions">
-            <button className="primary" type="submit" disabled={loading || !templates.length}>
-              Download LaTeX
+            <button
+              className="btn-primary"
+              onClick={() => downloadPDF(previewRole)}
+              disabled={!previewRole}
+            >
+              Download PDF Resume
             </button>
             <button
-              className="secondary"
-              type="button"
+              className="btn-secondary"
+              onClick={() => downloadLatex(previewRole)}
+              disabled={!previewRole}
+            >
+              Download LaTeX
+            </button>
+          </div>
+
+          {/* ── Resume cache status + regenerate ──────────────────────── */}
+          <div className="cache-panel">
+            <div className="cache-info">
+              <strong>Resume Cache</strong>
+              {cacheStatus ? (
+                <span className={cacheStatus.ready ? "cache-ready" : "cache-stale"}>
+                  {cacheStatus.cached}/{cacheStatus.total} PDFs cached
+                  {cacheStatus.ready ? " (ready)" : " (incomplete)"}
+                </span>
+              ) : (
+                <span>Checking...</span>
+              )}
+            </div>
+            <p className="cache-hint">
+              Resumes are pre-generated on server startup using your .env details.
+              Click Regenerate after updating your .env file.
+            </p>
+            <button
+              className="btn-secondary"
+              onClick={regenerateResumes}
               disabled={loading}
-              onClick={() => setResumeDetails(emptyResumeDetails)}
             >
-              Clear details
+              Regenerate All Resumes
             </button>
           </div>
-        </form>
-      </div>
-
-      <div className="card">
-        <h2>Add a new record</h2>
-        <form onSubmit={createRecord}>
-          <label>
-            Recipient email
-            <input
-              type="email"
-              value={form.to_email}
-              onChange={(event) => setForm({ ...form, to_email: event.target.value })}
-              placeholder="recipient@example.com"
-              required
-            />
-          </label>
-
-          <label>
-            Message type
-            <select
-              value={form.message_type}
-              onChange={(event) => setForm({ ...form, message_type: event.target.value })}
-            >
-              {messageOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Resume attachment
-            <input
-              id="resume-file"
-              type="file"
-              accept=".pdf,.doc,.docx,.tex"
-              onChange={(event) => setForm({ ...form, resume: event.target.files[0] })}
-              required
-            />
-          </label>
-
-          <div>
-            <button className="primary" type="submit" disabled={loading}>
-              Add record
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="card">
-        <h2>Pending records</h2>
-        <p>{records.length} record(s) waiting to execute.</p>
-        <button className="primary" type="button" onClick={executeAll} disabled={loading || !records.length}>
-          Execute send
-        </button>
-
-        {records.length ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Message type</th>
-                <th>Resume</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((record) => (
-                <tr key={record.id}>
-                  <td>{record.to_email}</td>
-                  <td>{record.message_type}</td>
-                  <td>{record.original_filename}</td>
-                  <td>
-                    <button className="secondary" type="button" onClick={() => deleteRecord(record.id)} disabled={loading}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>No records yet.</p>
-        )}
-      </div>
+        </div>
+      )}
     </main>
   );
 }

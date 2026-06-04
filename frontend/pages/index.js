@@ -14,6 +14,7 @@ const emptyResumeDetails = {
   location: "",
   linkedin: "",
   github: "",
+  portfolio: "",
   education: "",
   graduation_year: "",
 };
@@ -181,9 +182,8 @@ export default function Home() {
         <div className="section-heading">
           <div>
             <h2>Create dummy LaTeX resume</h2>
-            <p>Skills, projects, summary, experience, and certification text are already filled for each role.</p>
+            <p>ATS skills, job-focused projects, summary, experience, certifications, and achievements are already filled for each role.</p>
           </div>
-          {activeTemplate ? <span className="salary">{activeTemplate.salary}</span> : null}
         </div>
 
         <form onSubmit={downloadLatexResume}>
@@ -207,6 +207,16 @@ export default function Home() {
                   <span key={skill}>{skill}</span>
                 ))}
               </div>
+              {activeTemplate.focus?.length ? (
+                <div className="focus-list">
+                  <strong>Selection focus</strong>
+                  <ul>
+                    {activeTemplate.focus.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -262,12 +272,22 @@ export default function Home() {
             </label>
 
             <label>
-              GitHub / portfolio
+              GitHub
               <input
                 type="text"
                 value={resumeDetails.github}
                 onChange={(event) => setResumeDetails({ ...resumeDetails, github: event.target.value })}
                 placeholder="github.com/your-username"
+              />
+            </label>
+
+            <label>
+              Portfolio
+              <input
+                type="text"
+                value={resumeDetails.portfolio}
+                onChange={(event) => setResumeDetails({ ...resumeDetails, portfolio: event.target.value })}
+                placeholder="yourportfolio.com"
               />
             </label>
 

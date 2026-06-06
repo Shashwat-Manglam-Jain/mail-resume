@@ -35,6 +35,14 @@ def _load_profile_from_env() -> dict:
         "portfolio": os.getenv("YOUR_PORTFOLIO", ""),
         "education": os.getenv("YOUR_EDUCATION", ""),
         "graduation_year": os.getenv("YOUR_GRADUATION_YEAR", ""),
+        "company_1_name": os.getenv("COMPANY_1_NAME", ""),
+        "company_1_role": os.getenv("COMPANY_1_ROLE", ""),
+        "company_1_location": os.getenv("COMPANY_1_LOCATION", ""),
+        "company_1_duration": os.getenv("COMPANY_1_DURATION", ""),
+        "company_2_name": os.getenv("COMPANY_2_NAME", ""),
+        "company_2_role": os.getenv("COMPANY_2_ROLE", ""),
+        "company_2_location": os.getenv("COMPANY_2_LOCATION", ""),
+        "company_2_duration": os.getenv("COMPANY_2_DURATION", ""),
     }
 
 

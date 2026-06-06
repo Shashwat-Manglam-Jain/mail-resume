@@ -30,7 +30,7 @@ import smtplib
 import logging
 from io import BytesIO
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException
@@ -93,20 +93,23 @@ MESSAGE_TEMPLATES = {
     # ── Job Application — formal cover letter style ─────────────────
     "job_apply": {
         "label": "Job Application",
-        "subject": "Application for {role_title} -- {your_name}",
+        "subject": "Application for {role_title} -- {your_name} | Ready for Immediate Joining",
         "body": (
             "Dear {hr_name},\n\n"
-            "I am writing to express my keen interest in the {role_title} "
-            "position{at_company}. With hands-on experience in "
-            "{top_skills}, I am confident in my ability to contribute "
-            "meaningfully to your team.\n\n"
-            "I have attached my resume for your review. It highlights my "
-            "key projects, technical proficiencies, and measurable outcomes "
-            "that align with the requirements of this role.\n\n"
-            "I would welcome the opportunity to discuss how my background "
-            "and skills can add value to your team. I am available "
-            "for an interview at your earliest convenience.\n\n"
-            "Thank you for your time and consideration.\n\n"
+            "I am writing to apply for the {role_title} position"
+            "{at_company}. I have strong hands-on experience in "
+            "{top_skills}, and I am confident I can deliver results "
+            "from day one.\n\n"
+            "Here is what I bring to your team:\n\n"
+            "  - Proven expertise in {top_skills} with real project outcomes\n"
+            "  - A track record of solving complex problems and delivering on tight deadlines\n"
+            "  - Strong collaboration skills and a passion for building quality solutions\n\n"
+            "I have attached my resume which details my projects, technical skills, "
+            "and measurable achievements that directly align with this role.\n\n"
+            "I am available for an interview at your earliest convenience and "
+            "can join immediately. A quick 15-minute call would be a great start "
+            "-- I would love to show you how I can add value to your team.\n\n"
+            "Looking forward to hearing from you.\n\n"
             "Best regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -116,22 +119,23 @@ MESSAGE_TEMPLATES = {
     # ── Interview Scheduling — with specific time availability ──────
     "interview_schedule": {
         "label": "Interview Scheduling",
-        "subject": "Re: Interview Scheduling -- {role_title} | {your_name}",
+        "subject": "Re: Interview Scheduling -- {role_title} | {your_name} (Available This Week)",
         "body": (
             "Dear {hr_name},\n\n"
-            "Thank you for shortlisting my application for the {role_title} "
-            "role{at_company}. I am very excited about the opportunity "
-            "to interview and discuss how my skills in {top_skills} can "
-            "benefit your team.\n\n"
-            "I am available for an interview at the following times:\n\n"
+            "Thank you for shortlisting me for the {role_title} role"
+            "{at_company} -- I am thrilled about this opportunity and "
+            "eager to discuss how my skills in {top_skills} can directly "
+            "contribute to your team's goals.\n\n"
+            "I am flexible and available at the following times:\n\n"
             "    Weekdays:   10:00 AM -- 12:00 PM IST\n"
             "                 2:00 PM --  5:00 PM IST\n"
             "    Saturdays:  10:00 AM --  1:00 PM IST\n\n"
-            "I am happy to accommodate any other time slot that works best "
-            "for you. Please feel free to suggest an alternative, and I "
-            "will confirm immediately.\n\n"
-            "I have attached my updated resume for your reference.\n\n"
-            "Looking forward to our conversation.\n\n"
+            "I am happy to work around your schedule -- please suggest any "
+            "other time slot and I will confirm right away.\n\n"
+            "My updated resume is attached for your reference. I am excited "
+            "to walk you through my projects and demonstrate how my experience "
+            "aligns with what you are looking for.\n\n"
+            "Looking forward to connecting soon.\n\n"
             "Best regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -141,19 +145,23 @@ MESSAGE_TEMPLATES = {
     # ── Follow-up — polite check on application status ──────────────
     "follow_up": {
         "label": "Follow Up",
-        "subject": "Follow-Up: {role_title} Application -- {your_name}",
+        "subject": "Following Up: {role_title} Application -- {your_name} | Still Very Interested",
         "body": (
             "Dear {hr_name},\n\n"
-            "I hope this message finds you well. I recently applied for "
-            "the {role_title} position{at_company} and wanted to "
-            "follow up on my application status.\n\n"
-            "I remain very enthusiastic about this opportunity and believe "
-            "my experience in {top_skills} makes me a strong fit for your "
-            "team.\n\n"
-            "I have re-attached my resume for your convenience. Please let "
-            "me know if there is any additional information I can provide "
-            "to support my candidacy.\n\n"
-            "Looking forward to hearing from you.\n\n"
+            "I hope you are doing well. I recently applied for the "
+            "{role_title} position{at_company} and wanted to follow up "
+            "as I am genuinely excited about this opportunity.\n\n"
+            "To quickly recap what I bring:\n\n"
+            "  - Strong hands-on experience in {top_skills}\n"
+            "  - Real project outcomes with measurable business impact\n"
+            "  - Immediate availability and readiness to contribute from day one\n\n"
+            "I understand the hiring process takes time, but I wanted to "
+            "reaffirm my strong interest in this role. I am confident that "
+            "even a brief conversation would demonstrate why I am a strong "
+            "fit for your team.\n\n"
+            "I have re-attached my resume for your convenience. Would it be "
+            "possible to schedule a quick call this week?\n\n"
+            "Thank you for your time.\n\n"
             "Best regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -163,20 +171,23 @@ MESSAGE_TEMPLATES = {
     # ── Thank You — post-interview gratitude ────────────────────────
     "thank_you": {
         "label": "Thank You (Post-Interview)",
-        "subject": "Thank You -- {role_title} Interview | {your_name}",
+        "subject": "Thank You for the {role_title} Interview -- {your_name} | Excited to Join",
         "body": (
             "Dear {hr_name},\n\n"
             "Thank you for taking the time to interview me for the "
-            "{role_title} position{at_company}. I truly enjoyed "
-            "learning more about the team and the exciting work being "
-            "done.\n\n"
-            "Our conversation has reinforced my enthusiasm for this role. "
-            "I am confident that my skills in {top_skills} would allow "
-            "me to make a meaningful contribution to your objectives.\n\n"
-            "Please do not hesitate to reach out if you need any further "
-            "information. I look forward to the possibility of joining "
-            "your team.\n\n"
-            "Thank you again for the opportunity.\n\n"
+            "{role_title} position{at_company}. I really enjoyed our "
+            "conversation and learning more about the team and the "
+            "exciting challenges ahead.\n\n"
+            "After our discussion, I am even more enthusiastic about this "
+            "role. A few things I want to highlight:\n\n"
+            "  - My experience in {top_skills} maps directly to the problems "
+            "your team is solving\n"
+            "  - I am ready to hit the ground running and deliver results quickly\n"
+            "  - I am genuinely passionate about the work your organization is doing\n\n"
+            "I am very excited about the possibility of joining your team and "
+            "contributing to its success. Please do not hesitate to reach out "
+            "if you need any additional information from my side.\n\n"
+            "Looking forward to the next steps.\n\n"
             "Warm regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -186,19 +197,22 @@ MESSAGE_TEMPLATES = {
     # ── Referral Request — asking someone to refer you ──────────────
     "referral": {
         "label": "Referral Request",
-        "subject": "Referral Request -- {role_title}{at_company}",
+        "subject": "Would You Refer Me? {role_title} Role{at_company} -- {your_name}",
         "body": (
             "Dear {hr_name},\n\n"
             "I hope you are doing well. I came across the {role_title} "
-            "opening{at_company} and I am very interested in the "
-            "position.\n\n"
-            "Given my background in {top_skills}, I believe I would be a "
-            "strong fit for this role. I was hoping you might be able to "
-            "refer me or point me in the right direction for this "
-            "opportunity.\n\n"
-            "I have attached my resume for your review. Any guidance or "
-            "support would be greatly appreciated.\n\n"
-            "Thank you for your time and consideration.\n\n"
+            "opening{at_company} and I believe it is a great match for "
+            "my background.\n\n"
+            "Here is a quick snapshot of what I bring:\n\n"
+            "  - Strong expertise in {top_skills}\n"
+            "  - Hands-on project experience with proven, measurable results\n"
+            "  - Ready to contribute immediately and make an impact\n\n"
+            "I would be truly grateful if you could refer me for this role "
+            "or connect me with the right person on the hiring team. Even a "
+            "brief introduction would mean a lot.\n\n"
+            "I have attached my resume for your review -- it covers my "
+            "projects, skills, and achievements in detail.\n\n"
+            "Thank you so much for your time and support.\n\n"
             "Warm regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -208,19 +222,24 @@ MESSAGE_TEMPLATES = {
     # ── Cold Outreach — proactive introduction ──────────────────────
     "cold_outreach": {
         "label": "Cold Outreach",
-        "subject": "{role_title} -- Exploring Opportunities | {your_name}",
+        "subject": "Experienced {role_title} -- Actively Seeking Opportunities{at_company} | {your_name}",
         "body": (
             "Dear {hr_name},\n\n"
-            "I am reaching out to introduce myself. I am a {role_title} "
-            "with practical experience in {top_skills}, and I am actively "
-            "exploring new opportunities.\n\n"
-            "I have been following your team's work and am impressed "
-            "by the impact being made. I would love to explore "
-            "whether there is a potential fit for my skill set within your "
-            "organization.\n\n"
-            "I have attached my resume for your review. I would be happy "
-            "to connect for a brief conversation at your convenience.\n\n"
-            "Thank you for considering my profile.\n\n"
+            "I am a {role_title} with strong hands-on experience in "
+            "{top_skills}, and I am actively looking for my next opportunity "
+            "where I can create real impact.\n\n"
+            "Here is what I can bring to your organization:\n\n"
+            "  - Proven skills in {top_skills} backed by real project outcomes\n"
+            "  - Ability to quickly adapt, learn, and deliver in fast-paced environments\n"
+            "  - A problem-solving mindset focused on driving measurable results\n\n"
+            "I have attached my resume which covers my projects, achievements, "
+            "and technical expertise in detail. I would love the chance to have "
+            "a quick 10-15 minute conversation to explore if there is a fit "
+            "within your team.\n\n"
+            "Even if there are no current openings, I would appreciate being "
+            "kept in mind for future roles. I am available for a call at your "
+            "convenience.\n\n"
+            "Thank you for your time.\n\n"
             "Best regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -291,6 +310,14 @@ def _get_profile() -> dict:
         "portfolio": os.getenv("YOUR_PORTFOLIO", ""),
         "education": os.getenv("YOUR_EDUCATION", ""),
         "graduation_year": os.getenv("YOUR_GRADUATION_YEAR", ""),
+        "company_1_name": os.getenv("COMPANY_1_NAME", ""),
+        "company_1_role": os.getenv("COMPANY_1_ROLE", ""),
+        "company_1_location": os.getenv("COMPANY_1_LOCATION", ""),
+        "company_1_duration": os.getenv("COMPANY_1_DURATION", ""),
+        "company_2_name": os.getenv("COMPANY_2_NAME", ""),
+        "company_2_role": os.getenv("COMPANY_2_ROLE", ""),
+        "company_2_location": os.getenv("COMPANY_2_LOCATION", ""),
+        "company_2_duration": os.getenv("COMPANY_2_DURATION", ""),
     }
 
 

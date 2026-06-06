@@ -26,18 +26,21 @@ from fpdf import FPDF
 # ============================================================================
 
 def _role(key, title, summary, skills, projects, experience,
-          focus, certifications, achievements):
+          focus, certifications, achievements, previous_title=None,
+          coursework=None):
     """Build a structured role-template dict."""
     return {
         "key": key,
         "title": title,
+        "previous_title": previous_title or f"Junior {title}",
         "summary": summary,
         "skills": skills,           # dict[category -> list[str]]
         "projects": projects,       # list[dict(name, stack, bullets)]
-        "experience": experience,   # list[str]  (bullet points)
+        "experience": experience,   # list[dict(bullets=list[str])]
         "focus": focus,             # list[str]  (interview focus areas)
         "certifications": certifications,  # list[str]
         "achievements": achievements,      # list[str]
+        "coursework": coursework or "Data Structures, Algorithms, Databases, Statistics, Software Engineering",
     }
 
 
@@ -51,29 +54,32 @@ ROLE_TEMPLATES = [
     _role(
         "ai_ml_engineer",
         "AI/ML Engineer",
-        "AI/ML Engineer with hands-on experience building production-grade "
-        "machine learning systems, LLM-powered applications, RAG pipelines, "
-        "and cloud-deployed inference APIs delivering measurable business impact.",
+        "Results-driven AI/ML Engineer with 3+ years of experience building "
+        "production-grade machine learning systems, LLM-powered applications, "
+        "RAG pipelines, and cloud-deployed inference APIs. Proven track record "
+        "of reducing operational costs by 35% and improving model accuracy "
+        "through end-to-end ML lifecycle management across cross-functional teams.",
         {
             "Languages": [
                 "Python", "SQL", "Bash", "C++",
             ],
             "ML & Deep Learning": [
                 "PyTorch", "TensorFlow", "Scikit-learn", "XGBoost",
-                "Transformers", "HuggingFace",
+                "Transformers", "HuggingFace", "OpenCV",
             ],
             "GenAI & LLM": [
                 "LangChain", "LlamaIndex", "RAG", "FAISS",
                 "Fine-tuning (LoRA/QLoRA)", "Prompt Engineering",
-                "OpenAI API", "Claude API",
+                "OpenAI API", "Claude API", "Vector Databases",
             ],
             "MLOps & Cloud": [
                 "MLflow", "Docker", "Kubernetes", "FastAPI",
                 "AWS SageMaker", "CI/CD", "Weights & Biases",
+                "GitHub Actions",
             ],
             "Tools": [
                 "Git", "Linux", "Jupyter", "Pandas", "NumPy",
-                "Postman", "VS Code",
+                "Postman", "VS Code", "Agile/Scrum",
             ],
         },
         [
@@ -81,44 +87,62 @@ ROLE_TEMPLATES = [
                 "name": "LLM-Powered Document Intelligence Platform",
                 "stack": "LangChain, RAG, FAISS, FastAPI, React",
                 "bullets": [
-                    "Built a retrieval-augmented generation system that answers "
-                    "questions over 10k+ internal documents with citation "
-                    "tracking and confidence scoring.",
-                    "Implemented chunking strategies, metadata filters, and "
-                    "re-ranking to achieve 92% answer relevance on evaluation "
-                    "benchmarks.",
+                    "Architected a retrieval-augmented generation system serving "
+                    "10K+ daily queries over 50K internal documents with citation "
+                    "tracking, confidence scoring, and role-based access control.",
+                    "Engineered hybrid chunking strategies with metadata filters "
+                    "and cross-encoder re-ranking, achieving 92% answer relevance "
+                    "and reducing support ticket volume by 35%.",
                 ],
             },
             {
-                "name": "Production ML Pipeline — Customer Churn Prediction",
+                "name": "Production ML Pipeline -- Customer Churn Prediction",
                 "stack": "PyTorch, Scikit-learn, MLflow, Docker, AWS",
                 "bullets": [
                     "Designed end-to-end pipeline covering feature engineering, "
                     "model training, hyperparameter tuning, and automated "
-                    "deployment with 0.91 F1 score.",
-                    "Reduced monthly churn by 18% through SHAP-based "
-                    "explainability reports consumed by retention teams.",
+                    "deployment achieving 0.91 F1 score across 2M+ customer records.",
+                    "Reduced monthly churn by 18% ($240K annual savings) through "
+                    "SHAP-based explainability reports consumed by retention teams.",
                 ],
             },
             {
                 "name": "Real-Time Object Detection API",
                 "stack": "YOLOv8, FastAPI, Redis, Docker, Prometheus",
                 "bullets": [
-                    "Deployed a low-latency (<50ms) inference API for "
-                    "manufacturing defect detection processing 500+ images "
-                    "per minute.",
-                    "Added model versioning, A/B rollout, and Prometheus "
-                    "monitoring for drift detection in production.",
+                    "Deployed low-latency (<50ms) inference API for manufacturing "
+                    "defect detection, processing 500+ images/min with 97.3% "
+                    "accuracy, reducing manual inspection costs by 60%.",
+                    "Implemented model versioning, canary deployments, and "
+                    "Prometheus monitoring for drift detection, achieving 99.5% "
+                    "uptime in production.",
                 ],
             },
         ],
         [
-            "Built ML pipelines covering data preprocessing, training, "
-            "validation, deployment, and inference monitoring.",
-            "Converted business problems into measurable ML tasks with "
-            "clear metrics (F1, recall, latency, drift).",
-            "Collaborated with product and engineering teams to integrate "
-            "models into production APIs and dashboards.",
+            {
+                "bullets": [
+                    "Led design and deployment of LLM-powered RAG pipelines "
+                    "serving 10K+ daily queries, reducing support ticket volume "
+                    "by 35% and saving 200+ engineering hours monthly.",
+                    "Built end-to-end ML inference APIs using FastAPI and Docker "
+                    "with sub-50ms latency, serving 5 production models across "
+                    "3 business verticals.",
+                    "Established model evaluation frameworks using MLflow and "
+                    "Weights & Biases, improving model iteration speed by 40% "
+                    "across the ML team.",
+                ],
+            },
+            {
+                "bullets": [
+                    "Developed customer churn and demand prediction models using "
+                    "PyTorch and Scikit-learn, achieving 0.91 F1 score and "
+                    "reducing monthly churn by 18%.",
+                    "Implemented automated feature engineering pipelines "
+                    "processing 2M+ records daily with comprehensive data "
+                    "validation, monitoring, and alerting.",
+                ],
+            },
         ],
         [
             "Python ML stack", "LLM/RAG systems", "model evaluation",
@@ -126,22 +150,29 @@ ROLE_TEMPLATES = [
         ],
         [
             "AWS Machine Learning Specialty",
-            "Deep Learning Specialization — Andrew Ng",
+            "Deep Learning Specialization -- Andrew Ng (Coursera)",
             "LangChain for LLM Application Development",
         ],
         [
-            "Delivered 3 end-to-end AI projects with production-ready APIs.",
-            "Solved 300+ DSA and Python problems for coding interviews.",
+            "Delivered 5 end-to-end AI projects from ideation to production "
+            "deployment serving 50K+ users.",
+            "Solved 400+ DSA problems on LeetCode and HackerRank.",
+            "Mentored 3 junior engineers on ML best practices and code review.",
         ],
+        previous_title="Machine Learning Developer",
+        coursework="Machine Learning, Deep Learning, Data Structures, "
+                   "Algorithms, Statistics, Linear Algebra",
     ),
 
     # ── Data Engineer ───────────────────────────────────────────────────
     _role(
         "data_engineer",
         "Data Engineer",
-        "Data Engineer experienced in designing scalable ETL/ELT pipelines, "
-        "lakehouse architectures, real-time streaming, data quality frameworks, "
-        "and analytics-ready datasets serving business intelligence teams.",
+        "Data Engineer with 3+ years of experience designing scalable "
+        "ETL/ELT pipelines, lakehouse architectures, real-time streaming "
+        "systems, and data quality frameworks. Expertise in processing 5M+ "
+        "events/day and delivering analytics-ready datasets that drive "
+        "data-informed business decisions across organizations.",
         {
             "Languages": [
                 "Python", "SQL", "Scala", "Bash",
@@ -160,7 +191,7 @@ ROLE_TEMPLATES = [
             ],
             "Tools": [
                 "Git", "Linux", "Great Expectations",
-                "Power BI", "Tableau", "PostgreSQL",
+                "Power BI", "Tableau", "PostgreSQL", "Agile/Scrum",
             ],
         },
         [
@@ -168,11 +199,12 @@ ROLE_TEMPLATES = [
                 "name": "Real-Time Data Lakehouse Platform",
                 "stack": "Spark, Kafka, Delta Lake, Airflow, AWS S3",
                 "bullets": [
-                    "Designed a streaming-plus-batch lakehouse ingesting "
-                    "2M+ events/day from CRM, payments, and product telemetry "
-                    "into curated dimensional marts.",
-                    "Implemented schema evolution, data quality gates, and "
-                    "SLA alerting that reduced dashboard data issues by 75%.",
+                    "Architected a streaming-plus-batch lakehouse ingesting "
+                    "5M+ events/day from CRM, payments, and product telemetry "
+                    "into curated dimensional marts serving 200+ analysts.",
+                    "Implemented schema evolution, data quality gates using "
+                    "Great Expectations, and SLA alerting that reduced "
+                    "dashboard data issues by 75%.",
                 ],
             },
             {
@@ -181,9 +213,10 @@ ROLE_TEMPLATES = [
                 "bullets": [
                     "Migrated 200+ legacy SQL scripts to dbt models with "
                     "staging, intermediate, and mart layers, achieving full "
-                    "lineage documentation.",
+                    "lineage documentation and 99.9% data accuracy.",
                     "Automated CI/CD with model tests, freshness checks, "
-                    "and incremental builds cutting warehouse costs by 40%.",
+                    "and incremental builds cutting warehouse costs by 40% "
+                    "($180K annual savings).",
                 ],
             },
             {
@@ -192,19 +225,35 @@ ROLE_TEMPLATES = [
                 "bullets": [
                     "Built streaming ingestion for order and payment events "
                     "with retry handling, dead-letter queues, and real-time "
-                    "monitoring dashboards.",
-                    "Reduced manual reporting effort by 60% by making "
-                    "near-real-time sales KPIs available to BI consumers.",
+                    "monitoring dashboards across 15+ source systems.",
+                    "Reduced manual reporting effort by 60% by delivering "
+                    "near-real-time sales KPIs to BI consumers, enabling "
+                    "same-day decision-making.",
                 ],
             },
         ],
         [
-            "Developed ETL workflows with orchestration, partitioning, "
-            "incremental loads, and warehouse optimization.",
-            "Translated reporting requirements into source-to-target "
-            "mappings and reusable data models.",
-            "Partnered with analysts to improve KPI definitions, dashboard "
-            "reliability, and data availability.",
+            {
+                "bullets": [
+                    "Architected streaming data lakehouse ingesting 5M+ "
+                    "events/day from CRM, payments, and product telemetry "
+                    "using Spark, Kafka, and Delta Lake.",
+                    "Designed and maintained 200+ dbt models with full lineage "
+                    "documentation, achieving 40% warehouse cost reduction "
+                    "through incremental builds and partitioning.",
+                    "Implemented data quality gates with SLA alerting that "
+                    "reduced dashboard data issues by 75% across the org.",
+                ],
+            },
+            {
+                "bullets": [
+                    "Built batch and real-time ETL pipelines using Python, SQL, "
+                    "and Airflow, processing data from 15+ source systems into "
+                    "analytics-ready datasets.",
+                    "Developed monitoring dashboards and automated alerting for "
+                    "pipeline health, reducing data incidents by 60%.",
+                ],
+            },
         ],
         [
             "SQL depth", "Spark/Kafka", "Airflow orchestration",
@@ -216,20 +265,27 @@ ROLE_TEMPLATES = [
             "AWS Data Analytics Specialty",
         ],
         [
-            "Built reusable SQL models and data quality checks for "
-            "analytics workflows.",
-            "Documented data lineage and ownership for 50+ critical "
-            "reporting tables.",
+            "Built reusable SQL models and data quality checks adopted "
+            "by 3 engineering teams.",
+            "Documented data lineage and ownership for 80+ critical "
+            "reporting tables across the data warehouse.",
+            "Reduced pipeline failure rate from 12% to under 2% through "
+            "proactive monitoring and alerting.",
         ],
+        previous_title="ETL Developer",
+        coursework="Database Systems, Data Warehousing, Distributed Systems, "
+                   "Data Structures, Cloud Computing",
     ),
 
     # ── Data Scientist ──────────────────────────────────────────────────
     _role(
         "data_scientist",
         "Data Scientist",
-        "Data Scientist skilled in statistical modeling, predictive analytics, "
-        "experimentation design, and translating complex datasets into "
-        "actionable business recommendations with measurable ROI.",
+        "Data Scientist with 3+ years of experience in statistical modeling, "
+        "predictive analytics, A/B experimentation, and translating complex "
+        "datasets into actionable business recommendations. Delivered $500K+ "
+        "measurable ROI through customer segmentation, demand forecasting, "
+        "and experiment-driven product optimization.",
         {
             "Languages": [
                 "Python", "R", "SQL",
@@ -253,7 +309,7 @@ ROLE_TEMPLATES = [
             ],
             "Tools": [
                 "Jupyter", "Git", "BigQuery", "Snowflake",
-                "Pandas", "NumPy", "MLflow",
+                "Pandas", "NumPy", "MLflow", "Agile/Scrum",
             ],
         },
         [
@@ -261,23 +317,24 @@ ROLE_TEMPLATES = [
                 "name": "Customer Lifetime Value Prediction Engine",
                 "stack": "XGBoost, SHAP, Streamlit, PostgreSQL",
                 "bullets": [
-                    "Built a CLV prediction model segmenting 500k+ "
-                    "customers into value tiers with 0.88 AUC, enabling "
-                    "targeted retention campaigns.",
+                    "Built a CLV prediction model segmenting 500K+ customers "
+                    "into value tiers with 0.88 AUC, enabling targeted "
+                    "retention campaigns that increased retention by 22%.",
                     "Created an interactive Streamlit dashboard with SHAP "
-                    "explanations consumed by marketing leadership.",
+                    "explanations consumed by C-suite and marketing leadership "
+                    "for quarterly planning.",
                 ],
             },
             {
                 "name": "A/B Testing Analytics Platform",
                 "stack": "Python, Statsmodels, SQL, Power BI",
                 "bullets": [
-                    "Designed experiment framework with sample-size "
-                    "calculators, sequential testing, and guardrail metrics "
-                    "for pricing experiments.",
+                    "Designed enterprise experimentation framework with "
+                    "sample-size calculators, sequential testing, and guardrail "
+                    "metrics, standardizing A/B testing across 3 product teams.",
                     "Delivered lift analysis dashboards showing confidence "
-                    "intervals, segment effects, and revenue impact "
-                    "projections.",
+                    "intervals, segment effects, and revenue impact projections "
+                    "driving $200K+ incremental revenue.",
                 ],
             },
             {
@@ -285,19 +342,38 @@ ROLE_TEMPLATES = [
                 "stack": "Prophet, LightGBM, Pandas, Airflow",
                 "bullets": [
                     "Forecasted weekly product demand across 120 SKUs with "
-                    "seasonality, holiday effects, and promotional overlays.",
-                    "Improved inventory planning accuracy by 25% over "
-                    "baseline moving-average approach.",
+                    "seasonality, holiday effects, and promotional overlays "
+                    "using ensemble modeling approach.",
+                    "Improved inventory planning accuracy by 25% over baseline, "
+                    "reducing stockouts by 30% and saving $150K in excess "
+                    "inventory costs annually.",
                 ],
             },
         ],
         [
-            "Performed exploratory analysis, feature engineering, model "
-            "training, validation, and stakeholder storytelling.",
-            "Defined success metrics and evaluated models against business "
-            "outcomes, not only technical scores.",
-            "Created dashboards and notebooks that made insights accessible "
-            "to non-technical teams.",
+            {
+                "bullets": [
+                    "Led end-to-end data science projects from problem framing "
+                    "to production deployment, delivering $500K+ measurable "
+                    "business impact across 4 key initiatives.",
+                    "Designed A/B testing framework with sequential testing and "
+                    "guardrail metrics, standardizing experimentation across "
+                    "3 product teams.",
+                    "Created executive dashboards with SHAP-based model "
+                    "explanations, translating complex ML outputs into "
+                    "actionable business recommendations.",
+                ],
+            },
+            {
+                "bullets": [
+                    "Performed exploratory data analysis and built predictive "
+                    "models for demand forecasting across 120 SKUs, improving "
+                    "inventory planning accuracy by 25%.",
+                    "Developed automated reporting pipelines using SQL and "
+                    "Python, reducing manual reporting effort by 60% for "
+                    "the analytics team.",
+                ],
+            },
         ],
         [
             "statistics", "SQL depth", "business impact",
@@ -306,24 +382,30 @@ ROLE_TEMPLATES = [
         ],
         [
             "Google Advanced Data Analytics Professional Certificate",
-            "Applied Data Science with Python — University of Michigan",
+            "Applied Data Science with Python -- University of Michigan",
             "Statistics for Data Science and Business Analysis",
         ],
         [
-            "Delivered end-to-end analysis projects covering data cleaning, "
-            "modeling, and recommendations.",
-            "Built reusable notebooks for EDA, model comparison, and "
-            "executive reporting.",
+            "Delivered 6 end-to-end analysis projects covering data cleaning, "
+            "modeling, and production recommendations.",
+            "Built reusable experiment analysis templates adopted by 3 teams.",
+            "Presented quarterly insights to C-suite leadership driving "
+            "strategic product decisions.",
         ],
+        previous_title="Data Analyst",
+        coursework="Statistics, Probability, Machine Learning, Data Mining, "
+                   "Linear Algebra, Research Methods",
     ),
 
     # ── Data Analyst / BI Analyst ───────────────────────────────────────
     _role(
         "data_analyst_bi",
         "Data Analyst / BI Analyst",
-        "Data Analyst and BI professional focused on SQL-driven analysis, "
-        "KPI reporting, dashboard design, and translating raw data into "
-        "actionable insights for cross-functional business teams.",
+        "Data Analyst and BI professional with 3+ years of experience in "
+        "SQL-driven analysis, KPI reporting, dashboard design, and translating "
+        "raw data into actionable insights. Built 30+ executive dashboards "
+        "used by C-suite leadership, reducing reporting turnaround by 70% "
+        "and driving data-informed decisions across cross-functional teams.",
         {
             "Analytics": [
                 "SQL", "Excel", "Power BI", "Tableau", "Looker",
@@ -342,7 +424,7 @@ ROLE_TEMPLATES = [
             ],
             "Tools": [
                 "Python", "Pandas", "Google Sheets",
-                "GA4", "Jira", "Confluence",
+                "GA4", "Jira", "Confluence", "Agile/Scrum",
             ],
         },
         [
@@ -350,11 +432,12 @@ ROLE_TEMPLATES = [
                 "name": "Executive Revenue Dashboard",
                 "stack": "Power BI, SQL, DAX, Azure SQL",
                 "bullets": [
-                    "Created a leadership dashboard tracking revenue, churn, "
-                    "renewal, pipeline, and region-wise performance used by "
-                    "C-suite for weekly reviews.",
-                    "Built DAX measures with drill-through views enabling "
-                    "teams to diagnose metric changes in under 2 minutes.",
+                    "Created C-suite leadership dashboard tracking revenue, "
+                    "churn, renewal, pipeline, and region-wise performance "
+                    "used by 50+ stakeholders for weekly business reviews.",
+                    "Built 25+ DAX measures with drill-through views enabling "
+                    "teams to diagnose metric changes in under 2 minutes, "
+                    "reducing escalation time by 40%.",
                 ],
             },
             {
@@ -362,10 +445,11 @@ ROLE_TEMPLATES = [
                 "stack": "SQL, Tableau, Excel",
                 "bullets": [
                     "Analyzed lead source, stage conversion, sales cycle "
-                    "length, and win-rate trends using SQL window functions "
-                    "and Tableau visual reports.",
+                    "length, and win-rate trends across 10K+ opportunities "
+                    "using SQL window functions and Tableau visual reports.",
                     "Recommended lead-quality scoring changes that improved "
-                    "sales follow-up prioritization by 30%.",
+                    "sales follow-up prioritization by 30%, contributing "
+                    "$300K+ in pipeline acceleration.",
                 ],
             },
             {
@@ -374,19 +458,34 @@ ROLE_TEMPLATES = [
                 "bullets": [
                     "Built weekly SLA, backlog, aging, and agent productivity "
                     "reports with automated refresh reducing manual prep "
-                    "by 4 hours/week.",
-                    "Standardized ticket-level data transformations across "
-                    "3 support teams for consistent executive reporting.",
+                    "by 4 hours/week across 3 support regions.",
+                    "Standardized ticket-level data transformations and KPI "
+                    "definitions across 3 support teams for consistent "
+                    "executive reporting and performance benchmarking.",
                 ],
             },
         ],
         [
-            "Built dashboards, recurring reports, and ad-hoc analyses for "
-            "business stakeholders.",
-            "Used SQL to clean, join, and aggregate datasets from product, "
-            "sales, and operations systems.",
-            "Translated ambiguous business questions into measurable KPIs "
-            "and clear recommendations.",
+            {
+                "bullets": [
+                    "Built 30+ dashboards and recurring reports for business "
+                    "stakeholders, reducing reporting turnaround from 3 days "
+                    "to same-day delivery.",
+                    "Led root cause analysis initiatives identifying $200K+ "
+                    "in revenue leakage across sales and operations teams.",
+                    "Translated ambiguous business questions into measurable "
+                    "KPIs and clear recommendations for senior leadership.",
+                ],
+            },
+            {
+                "bullets": [
+                    "Used SQL to clean, join, and aggregate datasets from "
+                    "product, sales, and operations systems, creating "
+                    "standardized reporting tables for 5 departments.",
+                    "Built automated Excel and Power BI reports reducing "
+                    "manual data preparation effort by 15 hours/week.",
+                ],
+            },
         ],
         [
             "advanced SQL", "Power BI / Tableau", "KPI definitions",
@@ -398,20 +497,27 @@ ROLE_TEMPLATES = [
             "Advanced SQL for Data Analysis",
         ],
         [
-            "Created dashboards with automated refresh and stakeholder-"
-            "ready summaries.",
+            "Created 30+ dashboards with automated refresh and "
+            "stakeholder-ready summaries adopted company-wide.",
             "Improved reporting consistency by documenting KPI definitions "
-            "across departments.",
+            "and data dictionaries across 5 departments.",
+            "Received 'Analyst of the Quarter' recognition for revenue "
+            "leakage analysis saving $200K+.",
         ],
+        previous_title="Junior Data Analyst",
+        coursework="Business Statistics, Database Management, Data "
+                   "Visualization, Business Intelligence, Excel Analytics",
     ),
 
     # ── Business Analyst ────────────────────────────────────────────────
     _role(
         "business_analyst",
         "Business Analyst",
-        "Business Analyst experienced in requirement gathering, process mapping, "
-        "user story creation, UAT coordination, and delivering KPI-backed "
-        "recommendations that drive operational improvements.",
+        "Business Analyst with 3+ years of experience in requirement "
+        "gathering, process mapping, user story creation, UAT coordination, "
+        "and delivering KPI-backed recommendations. Successfully managed "
+        "requirements for 10+ product releases, reducing development rework "
+        "by 50% and driving operational improvements across organizations.",
         {
             "Analysis": [
                 "Requirement Gathering", "Process Mapping",
@@ -441,20 +547,23 @@ ROLE_TEMPLATES = [
                 "bullets": [
                     "Mapped current-state and future-state workflows for "
                     "application intake, verification, approval, and "
-                    "disbursal reducing cycle time by 35%.",
-                    "Defined 40+ user stories with acceptance criteria that "
-                    "reduced rework during development handoff by 50%.",
+                    "disbursal, reducing cycle time by 35% and processing "
+                    "2,000+ applications/month.",
+                    "Defined 40+ user stories with detailed acceptance criteria "
+                    "that reduced development rework by 50% and improved "
+                    "sprint velocity by 20%.",
                 ],
             },
             {
                 "name": "Customer Support Process Analytics",
                 "stack": "SQL, Excel, Power BI, Jira",
                 "bullets": [
-                    "Analyzed ticket aging, escalation reasons, and SLA "
-                    "breaches to identify process bottlenecks across "
-                    "3 support regions.",
+                    "Analyzed 50K+ tickets across ticket aging, escalation "
+                    "reasons, and SLA breaches to identify process bottlenecks "
+                    "across 3 support regions.",
                     "Built KPI dashboards and recommended queue-routing "
-                    "changes that improved first-response time by 25%.",
+                    "changes that improved first-response time by 25% and "
+                    "customer satisfaction score by 15 points.",
                 ],
             },
             {
@@ -462,19 +571,37 @@ ROLE_TEMPLATES = [
                 "stack": "Figma, Jira, Confluence, Miro",
                 "bullets": [
                     "Documented checkout, payment, coupon, refund, and "
-                    "order-status requirements covering 60+ edge cases.",
-                    "Coordinated UAT across 3 teams and tracked defects "
-                    "through closure before production release.",
+                    "order-status requirements covering 60+ edge cases "
+                    "across web and mobile platforms.",
+                    "Coordinated UAT across 3 teams (15 testers) and tracked "
+                    "120+ defects through closure, achieving zero critical "
+                    "bugs at production release.",
                 ],
             },
         ],
         [
-            "Converted stakeholder needs into clear requirements, user "
-            "stories, workflows, and acceptance criteria.",
-            "Supported UAT, release readiness, defect triage, and "
-            "business impact reporting.",
-            "Used data analysis to validate process improvements and "
-            "prioritize product changes.",
+            {
+                "bullets": [
+                    "Led requirement gathering for 10+ product releases, "
+                    "converting stakeholder needs into structured BRDs, user "
+                    "stories, and acceptance criteria.",
+                    "Managed end-to-end UAT coordination across 3 product "
+                    "teams, reducing post-release defects by 60% through "
+                    "comprehensive test scenario design.",
+                    "Used SQL and Power BI to validate process improvements "
+                    "and deliver KPI-backed recommendations to leadership.",
+                ],
+            },
+            {
+                "bullets": [
+                    "Supported requirement documentation, process mapping, "
+                    "and sprint planning for Agile development teams across "
+                    "2 product lines.",
+                    "Created workflow diagrams, meeting notes, and decision "
+                    "logs improving stakeholder alignment and reducing "
+                    "requirement ambiguity by 40%.",
+                ],
+            },
         ],
         [
             "BRD/FRD", "user stories", "UAT coordination",
@@ -482,15 +609,20 @@ ROLE_TEMPLATES = [
         ],
         [
             "IIBA Entry Certificate in Business Analysis (ECBA)",
-            "Agile Business Analysis — ICAgile",
+            "Agile Business Analysis -- ICAgile",
             "Microsoft Power BI for Business Users",
         ],
         [
-            "Created complete requirement packs with workflow diagrams "
-            "and test scenarios.",
-            "Improved stakeholder alignment through structured meeting "
-            "notes and decision logs.",
+            "Created complete requirement packs for 10+ releases with "
+            "workflow diagrams and 500+ test scenarios.",
+            "Improved stakeholder alignment score by 30% through "
+            "structured communication frameworks.",
+            "Recognized as top BA contributor for reducing development "
+            "rework by 50% across the product org.",
         ],
+        previous_title="Associate Business Analyst",
+        coursework="Business Analysis, Project Management, Database Systems, "
+                   "Software Engineering, Communication Skills",
     ),
 ]
 
@@ -639,9 +771,10 @@ def _build_extra_role(key, title, skill_text, project_name, stack,
     return _role(
         key,
         title,
-        f"{title} with practical experience building job-ready projects, "
-        f"collaborating with stakeholders, and delivering measurable "
-        f"improvements using modern industry tools.",
+        f"{title} with 3+ years of hands-on experience building production "
+        f"systems, collaborating with cross-functional teams, and delivering "
+        f"measurable improvements using modern industry tools and Agile "
+        f"methodology.",
         {
             "Core": skills[:5],
             "Technical": skills[5:10],
@@ -656,40 +789,62 @@ def _build_extra_role(key, title, skill_text, project_name, stack,
                 "name": project_name,
                 "stack": stack,
                 "bullets": [
-                    f"Built a portfolio-grade {project_description} aligned "
-                    f"with common {title} job requirements.",
-                    "Added measurable outcomes, documentation, test evidence, "
-                    "and user-focused improvements for interview readiness.",
+                    f"Architected and delivered a production-grade "
+                    f"{project_description}, serving 1,000+ active users "
+                    f"with 99.5% uptime and comprehensive test coverage.",
+                    f"Implemented CI/CD pipelines, automated testing, and "
+                    f"monitoring, reducing deployment time by 60% and "
+                    f"post-release defects by 40%.",
                 ],
             },
             {
-                "name": f"{title} Operations Dashboard",
-                "stack": "SQL, Excel, Power BI, Documentation",
+                "name": f"{title} Analytics Dashboard",
+                "stack": "SQL, Python, Power BI, REST APIs",
                 "bullets": [
-                    "Created KPI tracking for task progress, quality issues, "
-                    "delivery timelines, and stakeholder requests.",
-                    "Used reporting insights to prioritize improvements and "
-                    "explain project impact clearly during interviews.",
+                    "Built real-time KPI tracking dashboard monitoring task "
+                    "progress, quality metrics, delivery timelines, and "
+                    "team productivity across 3 departments.",
+                    "Automated weekly reporting workflows reducing manual "
+                    "data preparation by 8 hours/week and improving "
+                    "stakeholder visibility.",
                 ],
             },
             {
-                "name": f"{title} Automation Toolkit",
-                "stack": "Python, APIs, Git, CI/CD",
+                "name": f"{title} Workflow Automation Suite",
+                "stack": "Python, APIs, Docker, Git, CI/CD",
                 "bullets": [
-                    "Automated repetitive checks, exports, and status updates "
-                    "to reduce manual effort and improve consistency.",
-                    "Documented setup steps, edge cases, and results so "
-                    "reviewers can quickly understand ownership quality.",
+                    "Automated repetitive workflows including status updates, "
+                    "data exports, and health checks, reducing manual effort "
+                    "by 50% and improving consistency across teams.",
+                    "Documented architecture decisions, API contracts, and "
+                    "runbooks enabling seamless onboarding for 5+ new "
+                    "team members.",
                 ],
             },
         ],
         [
-            f"Delivered practical {title.lower()} tasks using modern tools, "
-            f"structured documentation, and measurable quality checks.",
-            "Worked with cross-functional stakeholders to clarify "
-            "requirements, review feedback, and improve deliverables.",
-            "Prepared demos, reports, and project notes showing business "
-            "value and technical understanding.",
+            {
+                "bullets": [
+                    f"Led end-to-end {title.lower()} projects using modern "
+                    f"tools, delivering measurable quality improvements and "
+                    f"30%+ efficiency gains across key workflows.",
+                    "Collaborated with cross-functional stakeholders to gather "
+                    "requirements, define deliverables, and execute projects "
+                    "following Agile/Scrum methodology.",
+                    "Mentored junior team members on best practices, code "
+                    "reviews, and technical documentation standards.",
+                ],
+            },
+            {
+                "bullets": [
+                    f"Supported {title.lower()} workflows including task "
+                    f"execution, quality assurance, reporting, and client "
+                    f"deliverable preparation.",
+                    "Built reusable templates and automated repetitive "
+                    "processes, reducing manual effort by 30% and improving "
+                    "team productivity.",
+                ],
+            },
         ],
         skills[:8],
         [
@@ -698,11 +853,12 @@ def _build_extra_role(key, title, skill_text, project_name, stack,
             "Communication and Stakeholder Management",
         ],
         [
-            "Created portfolio projects mapped directly to job-description "
-            "keywords.",
-            "Prepared interview-ready case studies explaining problem, "
-            "action, tools, and impact.",
+            f"Delivered 5+ production projects with documented business "
+            f"impact and stakeholder sign-off.",
+            "Received team recognition for process improvements saving "
+            "10+ hours/week in manual effort.",
         ],
+        previous_title=f"Junior {title}",
     )
 
 
@@ -852,12 +1008,7 @@ def generate_pdf_resume(role_key: str, profile: dict) -> bytes:
     pdf.section_header("Professional Summary")
     pdf.set_font("Helvetica", "", 8.5)
     pdf.set_text_color(50, 50, 50)
-    summary = (
-        template["summary"]
-        + " Strong foundation in communication, ownership, "
-        "documentation, and interview-ready project storytelling."
-    )
-    pdf.multi_cell(w=0, h=4, text=summary)
+    pdf.multi_cell(w=0, h=4, text=template["summary"])
     pdf.ln(1.5)
 
     # ── Technical Skills ────────────────────────────────────────────
@@ -876,21 +1027,51 @@ def generate_pdf_resume(role_key: str, profile: dict) -> bytes:
 
     # ── Experience ──────────────────────────────────────────────────
     pdf.section_header("Professional Experience")
-    # Title and company on same line
+
+    company_1_name = profile.get("company_1_name") or "Current Company"
+    company_1_loc = profile.get("company_1_location") or ""
+    company_1_dur = profile.get("company_1_duration") or "Jan 2024 -- Present"
+    company_2_name = profile.get("company_2_name") or "Previous Company"
+    company_2_loc = profile.get("company_2_location") or ""
+    company_2_dur = profile.get("company_2_duration") or "Jul 2022 -- Dec 2023"
+
+    exp_entries = template["experience"]
+
+    # Current company
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_text_color(30, 30, 30)
-    pdf.cell(w=0, h=5, text=f"Intern — {template['title']}")
-    # Date right-aligned
+    pdf.cell(w=0, h=5, text=template["title"])
     pdf.set_font("Helvetica", "I", 8.5)
     pdf.set_text_color(100, 100, 100)
-    pdf.cell(w=0, h=5, text="Jan 2025 — Present",
+    pdf.cell(w=0, h=5, text=company_1_dur,
              align="R", new_x="LMARGIN", new_y="NEXT")
+    company_1_line = ", ".join(p for p in [company_1_name, company_1_loc] if p)
     pdf.set_font("Helvetica", "", 8.5)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(w=0, h=4, text="SkillBridge Labs, Remote",
+    pdf.cell(w=0, h=4, text=company_1_line,
              new_x="LMARGIN", new_y="NEXT")
-    for exp_bullet in template["experience"]:
-        pdf.bullet(exp_bullet)
+    if len(exp_entries) > 0:
+        for b in exp_entries[0].get("bullets", []):
+            pdf.bullet(b)
+    pdf.ln(1)
+
+    # Previous company
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(30, 30, 30)
+    prev_title = template.get("previous_title", f"Junior {template['title']}")
+    pdf.cell(w=0, h=5, text=prev_title)
+    pdf.set_font("Helvetica", "I", 8.5)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(w=0, h=5, text=company_2_dur,
+             align="R", new_x="LMARGIN", new_y="NEXT")
+    company_2_line = ", ".join(p for p in [company_2_name, company_2_loc] if p)
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(w=0, h=4, text=company_2_line,
+             new_x="LMARGIN", new_y="NEXT")
+    if len(exp_entries) > 1:
+        for b in exp_entries[1].get("bullets", []):
+            pdf.bullet(b)
     pdf.ln(1)
 
     # ── Key Projects ────────────────────────────────────────────────
@@ -919,10 +1100,12 @@ def generate_pdf_resume(role_key: str, profile: dict) -> bytes:
              align="R", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(80, 80, 80)
+    cw = template.get("coursework",
+                      "Data Structures, Algorithms, Databases, "
+                      "Statistics, Software Engineering")
     pdf.cell(
         w=0, h=4,
-        text="Relevant coursework: Data Structures, Databases, "
-             "Statistics, Software Engineering",
+        text=f"Relevant coursework: {cw}",
         new_x="LMARGIN", new_y="NEXT",
     )
     pdf.ln(1)
@@ -1017,6 +1200,30 @@ def make_latex_resume(template: dict, basics: dict) -> str:
     title = _latex_escape(template["title"])
     summary = _latex_escape(template["summary"])
 
+    # Company details from profile
+    c1_name = _latex_escape(basics.get("company_1_name") or "Current Company")
+    c1_loc = _latex_escape(basics.get("company_1_location") or "")
+    c1_dur = _latex_escape(basics.get("company_1_duration") or "Jan 2024 -- Present")
+    c2_name = _latex_escape(basics.get("company_2_name") or "Previous Company")
+    c2_loc = _latex_escape(basics.get("company_2_location") or "")
+    c2_dur = _latex_escape(basics.get("company_2_duration") or "Jul 2022 -- Dec 2023")
+    prev_title = _latex_escape(
+        template.get("previous_title", f"Junior {template['title']}")
+    )
+    coursework_text = _latex_escape(
+        template.get("coursework",
+                     "Data Structures, Algorithms, Databases, "
+                     "Statistics, Software Engineering")
+    )
+
+    c1_line = f"{c1_name}, {c1_loc}" if c1_loc else c1_name
+    c2_line = f"{c2_name}, {c2_loc}" if c2_loc else c2_name
+
+    exp_entries = template["experience"]
+    exp1_bullets = _tex_items(exp_entries[0]["bullets"]) if exp_entries else ""
+    exp2_bullets = (_tex_items(exp_entries[1]["bullets"])
+                    if len(exp_entries) > 1 else "")
+
     return dedent(
         rf"""
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1049,7 +1256,7 @@ def make_latex_resume(template: dict, basics: dict) -> str:
         \address{{Location: {location} \quad | \quad Phone: {phone}}}
 
         \begin{{rSection}}{{Professional Summary}}
-        {summary} Strong foundation in communication, ownership, documentation, and interview-ready project storytelling.
+        {summary}
         \end{{rSection}}
 
         \begin{{rSection}}{{Core Skills}}
@@ -1058,11 +1265,18 @@ def make_latex_resume(template: dict, basics: dict) -> str:
         \end{{tabularx}}
         \end{{rSection}}
 
-        \begin{{rSection}}{{Experience}}
-        \textbf{{Intern — {title}}} \hfill {{\em Jan 2025 — Present}}\\
-        SkillBridge Labs, Remote
+        \begin{{rSection}}{{Professional Experience}}
+        \textbf{{{title}}} \hfill {{\em {c1_dur}}}\\
+        {c1_line}
         \begin{{itemize}}
-        {_tex_items(template["experience"])}
+        {exp1_bullets}
+        \end{{itemize}}
+
+        \vspace{{4pt}}
+        \textbf{{{prev_title}}} \hfill {{\em {c2_dur}}}\\
+        {c2_line}
+        \begin{{itemize}}
+        {exp2_bullets}
         \end{{itemize}}
         \end{{rSection}}
 
@@ -1072,7 +1286,7 @@ def make_latex_resume(template: dict, basics: dict) -> str:
 
         \begin{{rSection}}{{Education}}
         \textbf{{{education}}} \hfill {grad_year}\\
-        Relevant coursework: Data Structures, Databases, Statistics, Software Engineering, Business Communication
+        Relevant coursework: {coursework_text}
         \end{{rSection}}
 
         \begin{{rSection}}{{Certifications}}

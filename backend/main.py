@@ -58,10 +58,13 @@ load_dotenv()
 # ── Create database tables on startup ───────────────────────────────────────
 Base.metadata.create_all(bind=engine)
 
+IS_VERCEL = os.environ.get("VERCEL") == "1"
+
 # ── Resume cache directory ──────────────────────────────────────────────────
-# All 21 role PDFs are generated here on startup. At send time we just
-# read the file — no PDF generation overhead per email.
-RESUME_DIR = Path(__file__).parent / "generated_resumes"
+if IS_VERCEL:
+    RESUME_DIR = Path("/tmp/generated_resumes")
+else:
+    RESUME_DIR = Path(__file__).parent / "generated_resumes"
 RESUME_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── FastAPI application ─────────────────────────────────────────────────────
@@ -72,10 +75,15 @@ app = FastAPI(
 )
 
 # ── CORS — allow frontend dev server ────────────────────────────────────────
+_origins = ["http://localhost:3000"]
+_frontend_url = os.getenv("FRONTEND_URL")
+if _frontend_url:
+    _origins.append(_frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"] if IS_VERCEL and not _frontend_url else _origins,
+    allow_credentials=not IS_VERCEL or bool(_frontend_url),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -431,8 +439,10 @@ def _get_cached_resume(role_key: str) -> bytes:
     return pdf_bytes
 
 
-# Pre-generate all resumes on import (server startup)
-_generate_all_resumes()
+# Pre-generate all resumes on import (server startup) — skip on Vercel
+# where cold starts should be fast; resumes are generated on-demand instead.
+if not IS_VERCEL:
+    _generate_all_resumes()
 
 
 def _send_email(to_email: str, subject: str, body: str,
@@ -676,6 +686,22 @@ def create_record(data: RecordCreate, db: Session = Depends(_get_db)):
         message_type=data.message_type,
     )
     db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@app.put("/records/{record_id}", response_model=RecordOut)
+def update_record(record_id: int, data: RecordCreate, db: Session = Depends(_get_db)):
+    """Update an existing record in the queue."""
+    record = db.query(Record).filter(Record.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    record.to_email = data.to_email
+    record.hr_name = data.hr_name
+    record.company_name = data.company_name
+    record.role_key = data.role_key
+    record.message_type = data.message_type
     db.commit()
     db.refresh(record)
     return record

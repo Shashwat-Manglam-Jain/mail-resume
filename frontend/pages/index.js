@@ -5,13 +5,14 @@
  *   1. Header — app name and description
  *   2. Profile banner — shows name/email/phone from .env
  *   3. Tabs:
- *      a. Mail Queue — add records, table with per-row Send, Send All
+ *      a. Mail Queue — add/edit records, table with per-row Send/Edit/Delete, Send All
  *      b. Resume Preview — role selector, skills, download PDF/LaTeX
  *
  * Workflow:
  *   - User adds records (email, HR name, company, role, message type)
  *   - No file upload — resume PDF is auto-generated per role
  *   - "Send" on a row → sends that one email, removes row on success
+ *   - "Edit" on a row → loads record into form for updating
  *   - "Send All" → sends every row, removes all successful ones
  *   - Failed rows stay in the table for retry
  */
@@ -37,13 +38,14 @@ export default function Home() {
   const [roles, setRoles] = useState([]);            // available role templates
   const [msgTypes, setMsgTypes] = useState([]);       // message template options
   const [records, setRecords] = useState([]);         // queued mail records
-  const [form, setForm] = useState(EMPTY_FORM);       // add-record form
+  const [form, setForm] = useState(EMPTY_FORM);       // add/edit-record form
   const [roleSkills, setRoleSkills] = useState([]);    // skills for selected role
   const [preview, setPreview] = useState(null);        // message preview
   const [status, setStatus] = useState("");            // status/notification bar
   const [loading, setLoading] = useState(false);       // global loading flag
   const [sending, setSending] = useState({});          // per-row sending state
   const [tab, setTab] = useState("queue");             // active tab
+  const [editingId, setEditingId] = useState(null);    // record id being edited (null = add mode)
 
   /* ── Load initial data on mount ─────────────────────────────────────────── */
   useEffect(() => {
@@ -72,7 +74,7 @@ export default function Home() {
       const res = await fetch(`${API}/roles`);
       const data = await res.json();
       setRoles(data);
-      if (data.length) setForm(f => ({ ...f, role_key: data[0].key }));
+      if (data.length) setForm(f => ({ ...f, role_key: f.role_key || data[0].key }));
     } catch {
       setStatus("Cannot load roles. Is the backend running?");
     }
@@ -113,8 +115,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message_type: form.message_type,
-          hr_name: form.hr_name,         // empty → "Sir/Madam"
-          company_name: form.company_name, // empty → omitted
+          hr_name: form.hr_name,
+          company_name: form.company_name,
           role_key: form.role_key,
         }),
       });
@@ -130,11 +132,33 @@ export default function Home() {
     if (field === "role_key") fetchSkills(value);
   }
 
-  /** Add a new record to the mail queue. */
-  async function addRecord(e) {
+  /** Reset form to add mode. */
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(f => ({ ...EMPTY_FORM, role_key: roles.length ? roles[0].key : "", message_type: "job_apply" }));
+    setPreview(null);
+    setRoleSkills([]);
+  }
+
+  /** Load a record's data into the form for editing. */
+  function startEdit(record) {
+    setEditingId(record.id);
+    setForm({
+      to_email: record.to_email,
+      hr_name: record.hr_name,
+      company_name: record.company_name,
+      role_key: record.role_key,
+      message_type: record.message_type,
+    });
+    fetchSkills(record.role_key);
+    setPreview(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /** Add a new record or update an existing one. */
+  async function submitForm(e) {
     e.preventDefault();
 
-    // Validate required fields
     if (!form.to_email) {
       setStatus("Please enter a recipient email address.");
       return;
@@ -145,28 +169,41 @@ export default function Home() {
     }
 
     setLoading(true);
-    setStatus("Adding record...");
+    const isEditing = editingId !== null;
+    setStatus(isEditing ? "Updating record..." : "Adding record...");
+
     try {
-      const res = await fetch(`${API}/records`, {
-        method: "POST",
+      const url = isEditing ? `${API}/records/${editingId}` : `${API}/records`;
+      const method = isEditing ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to_email: form.to_email,
-          hr_name: form.hr_name,         // empty → "Sir/Madam" on backend
-          company_name: form.company_name, // empty → omitted from email
+          hr_name: form.hr_name,
+          company_name: form.company_name,
           role_key: form.role_key,
           message_type: form.message_type,
         }),
       });
+
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Failed to add record.");
+        let detail = "Request failed.";
+        try { detail = (await res.json()).detail || detail; } catch {}
+        throw new Error(detail);
       }
-      // Reset form but keep role and message type for convenience
+
+      if (isEditing) {
+        setEditingId(null);
+        setStatus("Record updated.");
+      } else {
+        setStatus("Record added to queue.");
+      }
+
       setForm(f => ({ ...EMPTY_FORM, role_key: f.role_key, message_type: f.message_type }));
       setPreview(null);
-      fetchRecords();
-      setStatus("Record added to queue.");
+      await fetchRecords();
     } catch (err) {
       setStatus(err.message);
     } finally {
@@ -182,20 +219,35 @@ export default function Home() {
    * On failure: row stays, error message is shown.
    */
   async function sendOne(id) {
+    if (sending[id]) return;
     setSending(s => ({ ...s, [id]: true }));
     setStatus("Sending...");
     try {
       const res = await fetch(`${API}/records/${id}/send`, { method: "POST" });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.detail || "Send failed.");
+
+      let result;
+      try {
+        result = await res.json();
+      } catch {
+        throw new Error("Invalid response from server.");
+      }
+
+      if (!res.ok) {
+        throw new Error(result.detail || `Send failed (HTTP ${res.status}).`);
+      }
+
       if (result.failed > 0) {
-        setStatus(`Failed: ${result.errors[0]?.error || "Unknown error"}`);
+        const errMsg = result.errors && result.errors[0] && result.errors[0].error
+          ? result.errors[0].error
+          : "Unknown error";
+        setStatus(`Failed: ${errMsg}`);
       } else {
         setStatus("Email sent and record removed.");
       }
-      fetchRecords();
+
+      await fetchRecords();
     } catch (err) {
-      setStatus(err.message);
+      setStatus(`Send error: ${err.message}`);
     } finally {
       setSending(s => ({ ...s, [id]: false }));
     }
@@ -211,16 +263,24 @@ export default function Home() {
     setStatus("Sending all emails...");
     try {
       const res = await fetch(`${API}/send-all`, { method: "POST" });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.detail || "Send failed.");
 
-      // Build status message
+      let result;
+      try {
+        result = await res.json();
+      } catch {
+        throw new Error("Invalid response from server.");
+      }
+
+      if (!res.ok) {
+        throw new Error(result.detail || "Send failed.");
+      }
+
       let msg = `Done! Sent: ${result.sent}`;
       if (result.failed > 0) msg += `, Failed: ${result.failed} (check table)`;
       setStatus(msg);
-      fetchRecords();
+      await fetchRecords();
     } catch (err) {
-      setStatus(err.message);
+      setStatus(`Send error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -228,9 +288,10 @@ export default function Home() {
 
   /** Delete a single record without sending. */
   async function deleteRecord(id) {
+    if (editingId === id) cancelEdit();
     try {
       await fetch(`${API}/records/${id}`, { method: "DELETE" });
-      fetchRecords();
+      await fetchRecords();
       setStatus("Record removed.");
     } catch (err) {
       setStatus(err.message);
@@ -239,9 +300,10 @@ export default function Home() {
 
   /** Clear all records from the queue. */
   async function clearAll() {
+    cancelEdit();
     try {
       await fetch(`${API}/records`, { method: "DELETE" });
-      fetchRecords();
+      await fetchRecords();
       setStatus("All records cleared.");
     } catch (err) {
       setStatus(err.message);
@@ -316,7 +378,7 @@ export default function Home() {
 
       {/* ── Status notification bar ────────────────────────────────── */}
       {status && (
-        <div className="status">
+        <div className={`status ${status.startsWith("Send error") || status.startsWith("Failed") ? "status-error" : ""}`}>
           {status}
           <button className="status-close" onClick={() => setStatus("")}>x</button>
         </div>
@@ -344,15 +406,25 @@ export default function Home() {
       {/* ================================================================ */}
       {tab === "queue" && (
         <>
-          {/* ── Add Record Form ────────────────────────────────────── */}
-          <div className="card">
-            <h2>Add Email Record</h2>
-            <p className="subtitle">
-              Fill in HR details, pick a role and message template.
-              Resume PDF is auto-generated — no file upload needed.
-            </p>
+          {/* ── Add / Edit Record Form ─────────────────────────────── */}
+          <div className={`card ${editingId !== null ? "card-editing" : ""}`}>
+            <div className="form-header">
+              <div>
+                <h2>{editingId !== null ? "Edit Record" : "Add Email Record"}</h2>
+                <p className="subtitle">
+                  {editingId !== null
+                    ? "Update the fields below and click Update Record."
+                    : "Fill in HR details, pick a role and message template. Resume PDF is auto-generated."}
+                </p>
+              </div>
+              {editingId !== null && (
+                <button className="btn-secondary btn-sm" onClick={cancelEdit}>
+                  Cancel Edit
+                </button>
+              )}
+            </div>
 
-            <form onSubmit={addRecord}>
+            <form onSubmit={submitForm}>
               <div className="form-grid">
 
                 {/* Recipient email — required */}
@@ -438,9 +510,14 @@ export default function Home() {
 
               {/* ── Action buttons ────────────────────────────────────── */}
               <div className="actions">
-                <button className="btn-primary" type="submit" disabled={loading}>
-                  Add to Queue
+                <button className={editingId !== null ? "btn-update" : "btn-primary"} type="submit" disabled={loading}>
+                  {editingId !== null ? "Update Record" : "Add to Queue"}
                 </button>
+                {editingId !== null && (
+                  <button className="btn-secondary" type="button" onClick={cancelEdit}>
+                    Cancel
+                  </button>
+                )}
                 <button
                   className="btn-secondary"
                   type="button"
@@ -523,9 +600,10 @@ export default function Home() {
                         m => m.key === r.message_type
                       )?.label || r.message_type;
                       const isSending = sending[r.id];
+                      const isEditing = editingId === r.id;
 
                       return (
-                        <tr key={r.id} className={isSending ? "row-sending" : ""}>
+                        <tr key={r.id} className={isSending ? "row-sending" : isEditing ? "row-editing" : ""}>
                           <td className="cell-num">{i + 1}</td>
                           <td className="cell-email">{r.to_email}</td>
                           <td>{r.hr_name || "Sir/Madam"}</td>
@@ -539,6 +617,13 @@ export default function Home() {
                               disabled={isSending || loading}
                             >
                               {isSending ? "Sending..." : "Send"}
+                            </button>
+                            <button
+                              className="btn-edit"
+                              onClick={() => startEdit(r)}
+                              disabled={isSending || loading}
+                            >
+                              {isEditing ? "Editing..." : "Edit"}
                             </button>
                             <button
                               className="btn-delete"

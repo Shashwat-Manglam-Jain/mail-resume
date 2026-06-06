@@ -199,3 +199,100 @@ Step 4:  Interview done?                        -->  THANK YOU
 
 This is the full journey. You may not always go through all steps,
 but this is the ideal flow for maximum chances of getting selected.
+
+---
+
+## Resume Roles Available (21 Total)
+
+Pick the role that matches the job you are applying for.
+Each role generates a tailored resume with relevant skills, projects, and experience.
+
+### Data & AI Roles
+
+| #  | Role Name in App           | Choose When You Are Applying For                          |
+|----|----------------------------|-----------------------------------------------------------|
+| 1  | AI/ML Engineer             | Machine Learning, AI, LLM, NLP, Deep Learning jobs       |
+| 2  | Data Engineer              | ETL pipelines, Data Warehousing, Spark, Kafka jobs        |
+| 3  | Data Scientist             | Data Science, Analytics, Statistical Modeling, A/B Testing|
+| 4  | Data Analyst / BI Analyst  | Data Analysis, Reporting, Dashboards, Power BI, Tableau   |
+| 5  | Business Analyst           | Business Analysis, Requirements, Process Mapping, UAT     |
+
+### Development Roles
+
+| #  | Role Name in App           | Choose When You Are Applying For                          |
+|----|----------------------------|-----------------------------------------------------------|
+| 6  | Full-Stack Developer       | Full-Stack, MERN, MEAN, Django + React type jobs          |
+| 7  | Back-End Developer         | Backend, APIs, Server-side, Node.js, Django, Spring jobs  |
+| 8  | Front-End Developer        | Frontend, React, Angular, Vue, UI Development jobs        |
+| 9  | Software Engineer          | General SDE, Software Developer, Programming roles        |
+| 10 | Web Developer              | Web Development, WordPress, HTML/CSS/JS roles             |
+| 11 | Mobile App Developer       | Android, iOS, Flutter, React Native app development       |
+
+### Infrastructure & Security Roles
+
+| #  | Role Name in App           | Choose When You Are Applying For                          |
+|----|----------------------------|-----------------------------------------------------------|
+| 12 | Cloud & DevOps Engineer    | DevOps, AWS, Azure, CI/CD, Docker, Kubernetes jobs        |
+| 13 | Cybersecurity Analyst      | Security Analyst, SOC, Penetration Testing, InfoSec jobs  |
+| 14 | Software Tester (QA)       | QA, Testing, Automation Testing, Selenium, SDET jobs      |
+
+### Design Roles
+
+| #  | Role Name in App           | Choose When You Are Applying For                          |
+|----|----------------------------|-----------------------------------------------------------|
+| 15 | UI/UX Engineer             | UI/UX Design, Interaction Design, Figma, User Research    |
+| 16 | Product Designer           | Product Design, Design Systems, Prototyping               |
+| 17 | Graphic Designer           | Graphic Design, Branding, Adobe Illustrator, Photoshop    |
+
+### Marketing & Media Roles
+
+| #  | Role Name in App           | Choose When You Are Applying For                          |
+|----|----------------------------|-----------------------------------------------------------|
+| 18 | SEO Specialist             | SEO, Digital Marketing, Content Strategy, SEM roles       |
+| 19 | Video Editor               | Video Editing, Motion Graphics, YouTube, After Effects     |
+
+### Sales & Account Roles
+
+| #  | Role Name in App           | Choose When You Are Applying For                          |
+|----|----------------------------|-----------------------------------------------------------|
+| 20 | Account Manager            | Account Management, Client Relations, Customer Success    |
+| 21 | Sales Representative       | Sales, Business Development, BDR, SDR roles               |
+
+---
+
+## How to Pick the Right Role
+
+```
+What job title is in the posting?
+
+  "Data Scientist" / "ML Engineer"      -->  Pick from Data & AI Roles
+  "React Developer" / "SDE" / "SWE"     -->  Pick from Development Roles
+  "DevOps" / "QA" / "Security"          -->  Pick from Infrastructure & Security
+  "UI/UX" / "Designer"                  -->  Pick from Design Roles
+  "SEO" / "Video Editor"                -->  Pick from Marketing & Media
+  "Sales" / "Account Manager"           -->  Pick from Sales & Account
+
+  Not sure?  -->  Pick "Software Engineer" (most generic, works for many tech roles)
+```
+
+---
+
+## Full Example: Step by Step
+
+**Scenario:** You found a "Data Scientist" job on LinkedIn at Flipkart.
+
+1. Open the app
+2. **Role:** Select "Data Scientist" (generates resume with DS skills & projects)
+3. **Message Template:** Select "Job Application" (since you're applying to a posted job)
+4. **Company Name:** Type "Flipkart"
+5. **HR Name:** Type the HR's name (or leave blank for "Sir/Madam")
+6. Preview --> Send
+
+**Scenario:** You visited a startup's website, found hr@startup.com, no job posted.
+
+1. Open the app
+2. **Role:** Select the role closest to what you want (e.g., "AI/ML Engineer")
+3. **Message Template:** Select "Cold Outreach"
+4. **Company Name:** Type the startup name
+5. **HR Name:** Leave blank (or type if you found a name)
+6. Preview --> Send

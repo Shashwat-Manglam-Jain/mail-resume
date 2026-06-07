@@ -624,6 +624,126 @@ ROLE_TEMPLATES = [
         coursework="Business Analysis, Project Management, Database Systems, "
                    "Software Engineering, Communication Skills",
     ),
+
+    # ── Software Engineer ──────────────────────────────────────────────
+    _role(
+        "software_engineer",
+        "Software Engineer",
+        "Software Engineer with 3+ years of experience designing and building "
+        "scalable web applications, RESTful APIs, and microservices using "
+        "Python (FastAPI, Django) and Node.js (Express). Proven ability to "
+        "deliver high-performance backend systems handling 10K+ RPM, implement "
+        "CI/CD pipelines, and collaborate effectively in Agile teams to ship "
+        "production-grade features on schedule.",
+        {
+            "Languages": [
+                "Python", "JavaScript", "TypeScript", "SQL", "Bash",
+            ],
+            "Backend Frameworks": [
+                "FastAPI", "Django", "Django REST Framework",
+                "Node.js", "Express.js",
+            ],
+            "Frontend": [
+                "React", "Next.js", "HTML", "CSS", "Tailwind CSS",
+            ],
+            "Databases & Caching": [
+                "PostgreSQL", "MongoDB", "Redis", "SQLite",
+            ],
+            "DevOps & Cloud": [
+                "Docker", "AWS (EC2, S3, Lambda)", "Nginx",
+                "GitHub Actions", "CI/CD", "Linux",
+            ],
+            "Concepts & Tools": [
+                "REST APIs", "GraphQL", "System Design",
+                "Data Structures", "Algorithms", "Git",
+                "Agile/Scrum", "OOP", "Design Patterns",
+            ],
+        },
+        [
+            {
+                "name": "Real-Time Collaboration API Platform",
+                "stack": "FastAPI, PostgreSQL, Redis, WebSockets, Docker",
+                "bullets": [
+                    "Architected a high-throughput FastAPI backend with WebSocket "
+                    "support for real-time collaboration features, handling 10K+ "
+                    "concurrent connections with sub-100ms latency and 99.5% uptime.",
+                    "Designed async task processing with Celery and Redis, "
+                    "implementing rate limiting, request validation, and structured "
+                    "logging that reduced API error rates by 45%.",
+                ],
+            },
+            {
+                "name": "E-Commerce Marketplace Backend",
+                "stack": "Django, Django REST Framework, PostgreSQL, Celery, AWS S3",
+                "bullets": [
+                    "Built a full-featured Django marketplace backend with product "
+                    "catalog, order management, payment integration, and role-based "
+                    "access control serving 5K+ daily active users.",
+                    "Optimized database queries using select_related, prefetch_related, "
+                    "and indexing strategies, reducing average API response time by "
+                    "60% and cutting database load by 40%.",
+                ],
+            },
+            {
+                "name": "Microservices Notification Engine",
+                "stack": "Node.js, Express, MongoDB, RabbitMQ, Docker",
+                "bullets": [
+                    "Developed a Node.js microservice for multi-channel notifications "
+                    "(email, SMS, push) with templating, retry logic, and delivery "
+                    "tracking, processing 50K+ notifications daily.",
+                    "Implemented comprehensive API documentation with Swagger, "
+                    "integration tests with 90%+ coverage, and Docker-based local "
+                    "development environment reducing onboarding time by 50%.",
+                ],
+            },
+        ],
+        [
+            {
+                "bullets": [
+                    "Designed and built RESTful APIs and microservices using "
+                    "FastAPI, Django, and Node.js, serving 10K+ RPM across "
+                    "3 production applications with 99.5% uptime.",
+                    "Led migration of monolithic Django application to FastAPI "
+                    "microservices, improving response times by 55% and enabling "
+                    "independent deployment of 6 services.",
+                    "Established CI/CD pipelines with GitHub Actions, Docker "
+                    "containerization, and automated testing, reducing deployment "
+                    "time from 2 hours to 15 minutes.",
+                ],
+            },
+            {
+                "bullets": [
+                    "Developed backend features using Django and Express.js "
+                    "including user authentication, payment flows, and CRUD APIs "
+                    "across 2 product lines.",
+                    "Wrote unit and integration tests achieving 85%+ code coverage, "
+                    "performed code reviews, and contributed to technical "
+                    "documentation improving team onboarding efficiency by 30%.",
+                ],
+            },
+        ],
+        [
+            "Python backend (FastAPI, Django)", "Node.js/Express",
+            "REST API design", "database optimization",
+            "system design", "Docker & deployment",
+            "data structures & algorithms", "testing",
+        ],
+        [
+            "AWS Certified Cloud Practitioner",
+            "Meta Back-End Developer Professional Certificate",
+            "Node.js, Express, MongoDB -- The Complete Bootcamp",
+        ],
+        [
+            "Delivered 8+ production backend services from design to deployment "
+            "serving 50K+ users across FastAPI, Django, and Node.js stacks.",
+            "Solved 500+ DSA problems on LeetCode and HackerRank.",
+            "Mentored 4 junior developers on API design patterns, code review "
+            "best practices, and backend architecture.",
+        ],
+        previous_title="Junior Software Engineer",
+        coursework="Data Structures, Algorithms, Operating Systems, "
+                   "Database Systems, Computer Networks, Software Engineering",
+    ),
 ]
 
 
@@ -680,14 +800,6 @@ _EXTRA_ROLE_SPECS = [
      "Flutter, Firebase, REST APIs, SQLite",
      "cross-platform app for job assignment, GPS check-ins, image upload, "
      "offline sync, and push notifications"),
-
-    ("software_engineer", "Software Engineer",
-     "Java, Python, JavaScript, TypeScript, SQL, Data Structures, "
-     "REST APIs, Spring Boot, React, PostgreSQL, Git, System Design, Agile",
-     "Task Management Platform",
-     "Java, Spring Boot, React, PostgreSQL, Docker",
-     "task assignment, comments, notifications, audit history, and "
-     "role-based access control"),
 
     ("software_tester_qa", "Software Tester (QA)",
      "Manual Testing, Selenium, Playwright, Postman, API Testing, Jira, "

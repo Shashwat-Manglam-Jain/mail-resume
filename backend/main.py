@@ -76,14 +76,16 @@ app = FastAPI(
 
 # ── CORS — allow frontend dev server ────────────────────────────────────────
 _origins = ["http://localhost:3000"]
-_frontend_url = os.getenv("FRONTEND_URL")
-if _frontend_url:
-    _origins.append(_frontend_url)
+_frontend_urls = os.getenv("FRONTEND_URL", "")
+for _url in _frontend_urls.split(","):
+    _url = _url.strip()
+    if _url:
+        _origins.append(_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if IS_VERCEL and not _frontend_url else _origins,
-    allow_credentials=not IS_VERCEL or bool(_frontend_url),
+    allow_origins=["*"] if IS_VERCEL and len(_origins) == 1 else _origins,
+    allow_credentials=not IS_VERCEL or len(_origins) > 1,
     allow_methods=["*"],
     allow_headers=["*"],
 )

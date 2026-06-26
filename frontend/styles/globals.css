@@ -587,6 +587,409 @@ td {
   color: #475569;
 }
 
+/* ── Textarea ──────────────────────────────────────────────────────────── */
+
+textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.55;
+  resize: vertical;
+  transition: border-color 0.15s;
+  background: white;
+  color: #1e293b;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+textarea::placeholder { color: #94a3b8; }
+
+/* ── Input with inline button (Verify) ────────────────────────────────── */
+
+.input-with-btn {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.input-with-btn input {
+  flex: 1;
+}
+
+.btn-validate {
+  padding: 9px 14px;
+  border: 1px solid #a78bfa;
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.btn-validate:hover:not(:disabled) {
+  background: #ede9fe;
+  border-color: #7c3aed;
+}
+
+.btn-validate:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Email Validation Panel ───────────────────────────────────────────── */
+
+.validation-panel {
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.validation-ok {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.validation-fail {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.validation-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.validation-ok .validation-header strong {
+  color: #065f46;
+}
+
+.validation-fail .validation-header strong {
+  color: #991b1b;
+}
+
+.validation-reason {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.validation-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.check-badge {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.check-pass {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.check-fail {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.validation-suggestion {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-use-suggestion {
+  background: #d97706;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-use-suggestion:hover {
+  background: #b45309;
+}
+
+/* ── Custom Message Section ───────────────────────────────────────────── */
+
+.custom-message-section {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.custom-override {
+  margin-bottom: 14px;
+}
+
+.custom-override summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 8px 0;
+  user-select: none;
+}
+
+.custom-override summary:hover {
+  color: #374151;
+}
+
+.custom-override-fields {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 6px;
+}
+
+/* ── CC Tags in table ─────────────────────────────────────────────────── */
+
+.cell-cc {
+  max-width: 180px;
+}
+
+.cc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.cc-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  white-space: nowrap;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-muted {
+  color: #94a3b8;
+}
+
+/* ── Custom badge in table ────────────────────────────────────────────── */
+
+.custom-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  vertical-align: middle;
+}
+
+/* ── Cache Panel ──────────────────────────────────────────────────────── */
+
+.cache-panel {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.cache-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.cache-info strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.cache-ready {
+  color: #059669;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cache-stale {
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cache-hint {
+  color: #64748b;
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+/* ── Inline CC editing in table ────────────────────────────────────────── */
+
+.cc-cell-clickable {
+  cursor: pointer;
+  min-height: 24px;
+  padding: 2px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.cc-cell-clickable:hover {
+  background: #f0f9ff;
+}
+
+.cc-add-hint {
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cc-cell-clickable:hover .cc-add-hint {
+  color: #2563eb;
+}
+
+.cc-edit-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.cc-edit-input {
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  margin-bottom: 0 !important;
+  border-radius: 5px !important;
+}
+
+.cc-edit-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-xs {
+  padding: 2px 8px !important;
+  font-size: 10px !important;
+}
+
+/* ── Add CC toggle button ────────────────────────────────────────────── */
+
+.btn-add-cc {
+  background: none;
+  border: 1px dashed #94a3b8;
+  color: #64748b;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  margin-bottom: 14px;
+  transition: all 0.15s;
+}
+
+.btn-add-cc:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.btn-cc-remove {
+  padding: 9px 14px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.btn-cc-remove:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+/* ── LaTeX Resume Builder ─────────────────────────────────────────────── */
+
+.latex-editor {
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.latex-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #991b1b;
+}
+
+.latex-error pre {
+  margin: 8px 0 0;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #7f1d1d;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.latex-preview {
+  margin-top: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.latex-preview iframe {
+  width: 100%;
+  height: 700px;
+  border: none;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {

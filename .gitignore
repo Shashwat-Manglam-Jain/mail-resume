@@ -7,6 +7,10 @@ __pycache__/
 # SQLite
 *.db
 
+# Generated
+backend/bin/
+backend/generated_resumes/
+
 # Node
 node_modules/
 .next/

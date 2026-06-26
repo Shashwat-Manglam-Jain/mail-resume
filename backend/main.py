@@ -1,12 +1,6 @@
 """
 main.py — FastAPI application for the Email Resume Bulk Sender.
 
-Architecture:
-    .env holds personal details (name, email, phone, links) and SMTP config.
-    The UI only collects: HR email, HR name, company, role, message type.
-    Resumes are pre-generated into generated_resumes/ on startup.
-    At send time, the cached PDF is attached — no generation delay.
-
 Endpoints:
     GET  /profile              — user profile from .env
     GET  /roles                — list all available role templates
@@ -14,14 +8,17 @@ Endpoints:
     GET  /message-templates    — list message template options
     POST /message-preview      — preview composed subject + body
     GET  /records              — list all queued records
-    POST /records              — create a new record (no file upload)
+    POST /records              — create a new record
+    PUT  /records/{id}         — update a record
     DELETE /records/{id}       — delete a single record
     POST /records/{id}/send    — send one record, delete on success
     POST /send-all             — send all records, delete successful ones
+    POST /validate-email       — validate an email address (syntax + MX + SMTP)
     GET  /resume/{key}/pdf     — download cached PDF resume
     GET  /resume/{key}/latex   — download auto-generated LaTeX resume
-    POST /resumes/generate     — regenerate all cached PDFs (after .env change)
+    POST /resumes/generate     — regenerate all cached PDFs
     GET  /resumes/status       — check if resume cache is ready
+    POST /resume/compile-latex — compile raw LaTeX to PDF (auto-downloads tectonic)
 """
 
 import os
@@ -42,6 +39,7 @@ from email.message import EmailMessage
 
 from database import Base, SessionLocal, engine
 from models import Record
+from email_checker import validate_email_full
 from resume_templates import (
     get_template,
     list_templates,
@@ -52,29 +50,24 @@ from resume_templates import (
 
 logger = logging.getLogger(__name__)
 
-# ── Load environment variables ──────────────────────────────────────────────
 load_dotenv()
 
-# ── Create database tables on startup ───────────────────────────────────────
 Base.metadata.create_all(bind=engine)
 
 IS_VERCEL = os.environ.get("VERCEL") == "1"
 
-# ── Resume cache directory ──────────────────────────────────────────────────
 if IS_VERCEL:
     RESUME_DIR = Path("/tmp/generated_resumes")
 else:
     RESUME_DIR = Path(__file__).parent / "generated_resumes"
 RESUME_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── FastAPI application ─────────────────────────────────────────────────────
 app = FastAPI(
     title="Email Resume Bulk Sender",
     description="Queue HR emails, auto-generate role-specific resumes, "
                 "and bulk-send with one click.",
 )
 
-# ── CORS — allow frontend dev server ────────────────────────────────────────
 _origins = ["http://localhost:3000"]
 _frontend_urls = os.getenv("FRONTEND_URL", "")
 for _url in _frontend_urls.split(","):
@@ -91,16 +84,8 @@ app.add_middleware(
 )
 
 
-# ============================================================================
-# MESSAGE TEMPLATES — Formal, professional emails for different scenarios
-# ============================================================================
-# Placeholders: {hr_name}, {company_name}, {role_title},
-#               {top_skills}, {your_name}, {your_email}, {your_phone}
-# ============================================================================
-
 MESSAGE_TEMPLATES = {
 
-    # ── Job Application — formal cover letter style ─────────────────
     "job_apply": {
         "label": "Job Application",
         "subject": "Application for {role_title} -- {your_name} | Ready for Immediate Joining",
@@ -126,7 +111,6 @@ MESSAGE_TEMPLATES = {
         ),
     },
 
-    # ── Interview Scheduling — with specific time availability ──────
     "interview_schedule": {
         "label": "Interview Scheduling",
         "subject": "Re: Interview Scheduling -- {role_title} | {your_name} (Available This Week)",
@@ -152,7 +136,6 @@ MESSAGE_TEMPLATES = {
         ),
     },
 
-    # ── Follow-up — polite check on application status ──────────────
     "follow_up": {
         "label": "Follow Up",
         "subject": "Following Up: {role_title} Application -- {your_name} | Still Very Interested",
@@ -178,7 +161,6 @@ MESSAGE_TEMPLATES = {
         ),
     },
 
-    # ── Thank You — post-interview gratitude ────────────────────────
     "thank_you": {
         "label": "Thank You (Post-Interview)",
         "subject": "Thank You for the {role_title} Interview -- {your_name} | Excited to Join",
@@ -204,7 +186,6 @@ MESSAGE_TEMPLATES = {
         ),
     },
 
-    # ── Referral Request — asking someone to refer you ──────────────
     "referral": {
         "label": "Referral Request",
         "subject": "Would You Refer Me? {role_title} Role{at_company} -- {your_name}",
@@ -229,7 +210,6 @@ MESSAGE_TEMPLATES = {
         ),
     },
 
-    # ── Cold Outreach — proactive introduction ──────────────────────
     "cold_outreach": {
         "label": "Cold Outreach",
         "subject": "Experienced {role_title} -- Actively Seeking Opportunities{at_company} | {your_name}",
@@ -255,30 +235,38 @@ MESSAGE_TEMPLATES = {
             "{your_email} | {your_phone}"
         ),
     },
+
+    "custom": {
+        "label": "Custom Message",
+        "subject": "",
+        "body": "",
+    },
 }
 
 
-# ============================================================================
-# Pydantic schemas — request/response models
-# ============================================================================
+# ── Pydantic schemas ──────────────────────────────────────────────────────
 
 class RecordCreate(BaseModel):
-    """Schema for creating a new mail-queue record."""
     to_email: EmailStr
-    hr_name: str = ""           # empty → "Sir/Madam" in email greeting
-    company_name: str = ""      # empty → omitted from email body
+    cc_emails: str = ""
+    hr_name: str = ""
+    company_name: str = ""
     role_key: str = ""
     message_type: str = "job_apply"
+    custom_subject: str = ""
+    custom_body: str = ""
 
 
 class RecordOut(BaseModel):
-    """Schema for returning a record to the frontend."""
     id: int
     to_email: str
+    cc_emails: str
     hr_name: str
     company_name: str
     role_key: str
     message_type: str
+    custom_subject: str
+    custom_body: str
     created_at: datetime | None = None
 
     class Config:
@@ -286,30 +274,60 @@ class RecordOut(BaseModel):
 
 
 class SendResult(BaseModel):
-    """Result of a send-all or single-send operation."""
     sent: int
     failed: int
     errors: list[dict]
 
 
 class PreviewRequest(BaseModel):
-    """Schema for message preview."""
     message_type: str = "job_apply"
-    hr_name: str = ""           # empty → "Sir/Madam"
-    company_name: str = ""      # empty → omitted
+    hr_name: str = ""
+    company_name: str = ""
     role_key: str = ""
+    custom_subject: str = ""
+    custom_body: str = ""
 
 
-# ============================================================================
-# Helpers — profile, SMTP, message composition, email sending
-# ============================================================================
+class ValidateEmailRequest(BaseModel):
+    email: str
+    skip_smtp: bool = False
+
+
+class CustomResumeRequest(BaseModel):
+    role_key: str = ""
+    custom_name: str = ""
+    custom_email: str = ""
+    custom_phone: str = ""
+    custom_location: str = ""
+    custom_linkedin: str = ""
+    custom_github: str = ""
+    custom_portfolio: str = ""
+    custom_education: str = ""
+    custom_graduation_year: str = ""
+    custom_summary: str = ""
+    custom_skills: dict = {}
+    custom_company_1_name: str = ""
+    custom_company_1_role: str = ""
+    custom_company_1_location: str = ""
+    custom_company_1_duration: str = ""
+    custom_company_2_name: str = ""
+    custom_company_2_role: str = ""
+    custom_company_2_location: str = ""
+    custom_company_2_duration: str = ""
+
+
+class CompileLatexRequest(BaseModel):
+    latex: str
+    filename: str = "resume.pdf"
+
+
+class UpdateCCRequest(BaseModel):
+    cc_emails: str = ""
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────
 
 def _get_profile() -> dict:
-    """
-    Load user profile from environment variables.
-    These values are set once in .env and used everywhere:
-    resume generation, email composition, and email signature.
-    """
     return {
         "name": os.getenv("YOUR_NAME", ""),
         "email": os.getenv("YOUR_EMAIL", ""),
@@ -332,7 +350,6 @@ def _get_profile() -> dict:
 
 
 def _get_smtp_settings() -> tuple:
-    """Load SMTP connection settings from environment variables."""
     host = os.getenv("SMTP_HOST")
     port = int(os.getenv("SMTP_PORT", "465"))
     user = os.getenv("SMTP_USER")
@@ -348,7 +365,6 @@ def _get_smtp_settings() -> tuple:
 
 
 def _get_role_title(role_key: str) -> str:
-    """Resolve a role_key to its display title."""
     template = get_template(role_key)
     if template:
         return template["title"]
@@ -356,7 +372,6 @@ def _get_role_title(role_key: str) -> str:
 
 
 def _get_top_skills(role_key: str, count: int = 5) -> str:
-    """Get a comma-separated string of top skills for a role."""
     template = get_template(role_key)
     if template:
         all_skills = [s for vals in template["skills"].values() for s in vals]
@@ -365,26 +380,17 @@ def _get_top_skills(role_key: str, count: int = 5) -> str:
 
 
 def _compose_message(message_type: str, hr_name: str, company_name: str,
-                     role_key: str) -> tuple[str, str]:
-    """
-    Build the email subject and body from a message template.
+                     role_key: str, custom_subject: str = "",
+                     custom_body: str = "") -> tuple[str, str]:
+    if message_type == "custom" and custom_subject and custom_body:
+        return custom_subject, custom_body
 
-    Fallback logic:
-        hr_name   → "Sir/Madam" when empty (safe formal greeting)
-        company   → omitted from body when empty (no awkward placeholder)
+    if custom_subject and custom_body:
+        return custom_subject, custom_body
 
-    The {at_company} placeholder resolves to either " at CompanyName"
-    or "" (empty string), so sentences read naturally either way:
-        "the Data Scientist position at Google"   (company provided)
-        "the Data Scientist position"             (company empty)
-
-    Returns:
-        (subject, body) tuple with all placeholders resolved.
-    """
     profile = _get_profile()
     tmpl = MESSAGE_TEMPLATES.get(message_type, MESSAGE_TEMPLATES["job_apply"])
 
-    # Build the conditional " at CompanyName" fragment
     at_company = f" at {company_name}" if company_name.strip() else ""
 
     replacements = {
@@ -397,18 +403,30 @@ def _compose_message(message_type: str, hr_name: str, company_name: str,
         "your_phone": profile["phone"] or "",
     }
 
-    subject = tmpl["subject"].format(**replacements)
-    body = tmpl["body"].format(**replacements)
+    subject = custom_subject if custom_subject else tmpl["subject"].format(**replacements)
+    body = custom_body if custom_body else tmpl["body"].format(**replacements)
     return subject, body
 
 
-def _generate_all_resumes():
-    """
-    Pre-generate PDF resumes for every role template into RESUME_DIR.
+def _parse_cc_emails(cc_string: str) -> list[str]:
+    if not cc_string or not cc_string.strip():
+        return []
+    return [e.strip().lower() for e in cc_string.split(",") if e.strip()]
 
-    Called once on server startup and again via POST /resumes/generate
-    when the user updates their .env profile. Typically takes <1 second.
-    """
+
+def _validate_and_filter_cc(cc_list: list[str], from_email: str) -> tuple[list[str], list[dict]]:
+    valid = []
+    skipped = []
+    for cc in cc_list:
+        result = validate_email_full(cc, from_email, skip_smtp=True)
+        if result["valid"]:
+            valid.append(cc)
+        else:
+            skipped.append({"email": cc, "reason": result["reason"]})
+    return valid, skipped
+
+
+def _generate_all_resumes():
     profile = _get_profile()
     count = 0
     for template in ROLE_TEMPLATES:
@@ -425,50 +443,32 @@ def _generate_all_resumes():
 
 
 def _get_cached_resume(role_key: str) -> bytes:
-    """
-    Read a pre-generated PDF from the cache folder.
-
-    Falls back to on-the-fly generation if the cache file is missing
-    (e.g. new role added after last generation).
-    """
     pdf_path = RESUME_DIR / f"{role_key}.pdf"
     if pdf_path.exists():
         return pdf_path.read_bytes()
-    # Cache miss — generate on the fly and cache it
     profile = _get_profile()
     pdf_bytes = generate_pdf_resume(role_key, profile)
     pdf_path.write_bytes(pdf_bytes)
     return pdf_bytes
 
 
-# Pre-generate all resumes on import (server startup) — skip on Vercel
-# where cold starts should be fast; resumes are generated on-demand instead.
 if not IS_VERCEL:
     _generate_all_resumes()
 
 
 def _send_email(to_email: str, subject: str, body: str,
-                pdf_bytes: bytes, pdf_filename: str):
-    """
-    Send an email with a PDF resume attachment via SMTP SSL.
-
-    Args:
-        to_email:     recipient address
-        subject:      email subject line
-        body:         plain-text email body
-        pdf_bytes:    cached PDF resume bytes
-        pdf_filename: attachment filename (e.g. 'John_Doe_Resume.pdf')
-    """
+                pdf_bytes: bytes, pdf_filename: str,
+                cc_emails: list[str] | None = None):
     host, port, user, password, sender = _get_smtp_settings()
 
-    # Build the email message
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = to_email
+    if cc_emails:
+        msg["Cc"] = ", ".join(cc_emails)
     msg.set_content(body)
 
-    # Attach the cached PDF resume
     msg.add_attachment(
         pdf_bytes,
         maintype="application",
@@ -476,64 +476,68 @@ def _send_email(to_email: str, subject: str, body: str,
         filename=pdf_filename,
     )
 
-    # Send via SMTP SSL
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL(host, port, context=context) as server:
         server.login(user, password)
-        server.send_message(msg)
+        all_recipients = [to_email] + (cc_emails or [])
+        server.send_message(msg, to_addrs=all_recipients)
 
 
 def _send_single_record(record: Record, db: Session) -> dict:
-    """
-    Send one record's email and delete it from the database on success.
-
-    Steps:
-        1. Compose subject + body from template and record data
-        2. Read cached PDF resume for the record's role (no generation)
-        3. Send the email with PDF attached
-        4. On success → delete record from DB, return success
-        5. On failure → keep record, return error details
-
-    Returns:
-        dict with 'id', 'status' ('sent'|'failed'), and optional 'error'
-    """
     profile = _get_profile()
+    from_email = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
 
-    # Step 1 — Compose the email
+    to_result = validate_email_full(record.to_email, from_email)
+    if not to_result["valid"]:
+        return {
+            "id": record.id,
+            "status": "failed",
+            "error": f"TO validation failed: {to_result['reason']}",
+            "checks": to_result["checks"],
+        }
+
+    cc_list = _parse_cc_emails(record.cc_emails)
+    valid_cc, skipped_cc = _validate_and_filter_cc(cc_list, from_email)
+
     subject, body = _compose_message(
         record.message_type,
         record.hr_name,
         record.company_name,
         record.role_key,
+        record.custom_subject,
+        record.custom_body,
     )
 
-    # Step 2 — Read cached PDF (fast disk read, no generation)
     try:
         pdf_bytes = _get_cached_resume(record.role_key)
     except Exception:
         pdf_bytes = _get_cached_resume("ai_ml_engineer")
 
-    # Build attachment filename: "FirstName_LastName_RoleTitle_Resume.pdf"
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
     role_slug = _get_role_title(record.role_key).replace(" ", "_")
     pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
 
-    # Step 3 — Send the email
     try:
-        _send_email(record.to_email, subject, body, pdf_bytes, pdf_filename)
+        _send_email(record.to_email, subject, body, pdf_bytes, pdf_filename,
+                    cc_emails=valid_cc)
     except Exception as exc:
-        # Step 5 — Failed: keep record, return error
-        return {"id": record.id, "status": "failed", "error": str(exc)}
+        return {
+            "id": record.id,
+            "status": "failed",
+            "error": str(exc),
+            "skipped_cc": skipped_cc,
+        }
 
-    # Step 4 — Success: delete record from DB
     db.delete(record)
-    return {"id": record.id, "status": "sent"}
+    return {
+        "id": record.id,
+        "status": "sent",
+        "cc_sent": valid_cc,
+        "skipped_cc": skipped_cc,
+    }
 
-
-# ── Database session dependency ─────────────────────────────────────────────
 
 def _get_db():
-    """Yield a database session and close it when done."""
     db = SessionLocal()
     try:
         yield db
@@ -541,33 +545,20 @@ def _get_db():
         db.close()
 
 
-# ============================================================================
-# API Endpoints
-# ============================================================================
-
-# ── Profile ─────────────────────────────────────────────────────────────────
+# ── API Endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/profile")
 def get_profile():
-    """Return user profile loaded from .env (name, email, phone, links)."""
     return _get_profile()
 
 
-# ── Roles and Skills ────────────────────────────────────────────────────────
-
 @app.get("/roles")
 def get_roles():
-    """Return summary list of all available role templates."""
     return list_templates()
 
 
 @app.get("/roles/{role_key}/skills")
 def get_role_skills(role_key: str):
-    """
-    Return categorized skills for a specific role.
-
-    Response: list of {category: str, skills: list[str]}
-    """
     template = get_template(role_key)
     if not template:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -577,11 +568,8 @@ def get_role_skills(role_key: str):
     ]
 
 
-# ── Message Templates ──────────────────────────────────────────────────────
-
 @app.get("/message-templates")
 def get_message_templates():
-    """Return list of available message templates with key and label."""
     return [
         {"key": key, "label": tmpl["label"]}
         for key, tmpl in MESSAGE_TEMPLATES.items()
@@ -590,36 +578,29 @@ def get_message_templates():
 
 @app.post("/message-preview")
 def preview_message(req: PreviewRequest):
-    """
-    Preview the composed email subject and body.
-
-    Uses the selected message template + role + HR/company info
-    to show exactly what will be sent.
-    """
     subject, body = _compose_message(
         req.message_type, req.hr_name, req.company_name, req.role_key,
+        req.custom_subject, req.custom_body,
     )
     return {"subject": subject, "body": body}
 
 
-# ── Resume Downloads (preview before sending) ──────────────────────────────
+@app.post("/validate-email")
+def validate_email_endpoint(req: ValidateEmailRequest):
+    from_email = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
+    result = validate_email_full(req.email, from_email, skip_smtp=req.skip_smtp)
+    return result
+
 
 @app.get("/resume/{role_key}/pdf")
 def download_resume_pdf(role_key: str):
-    """
-    Download cached PDF resume for a role.
-
-    Reads from generated_resumes/ cache — no generation delay.
-    """
     template = get_template(role_key)
     if not template:
         raise HTTPException(status_code=404, detail="Role not found")
-
     pdf_bytes = _get_cached_resume(role_key)
     profile = _get_profile()
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
     filename = f"{name_slug}_{template['title'].replace(' ', '_')}_Resume.pdf"
-
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -629,23 +610,351 @@ def download_resume_pdf(role_key: str):
 
 @app.get("/resume/{role_key}/latex", response_class=PlainTextResponse)
 def download_resume_latex(role_key: str):
-    """Download LaTeX resume source for a role."""
     template = get_template(role_key)
     if not template:
         raise HTTPException(status_code=404, detail="Role not found")
-
     profile = _get_profile()
     return make_latex_resume(template, profile)
 
 
+@app.post("/resume/custom")
+def generate_custom_resume(req: CustomResumeRequest):
+    """Generate a custom PDF resume with user-provided overrides."""
+    from resume_templates import generate_pdf_resume, get_template
+    import copy
+
+    base_profile = _get_profile()
+    profile = {
+        "name": req.custom_name or base_profile["name"],
+        "email": req.custom_email or base_profile["email"],
+        "phone": req.custom_phone or base_profile["phone"],
+        "location": req.custom_location or base_profile["location"],
+        "linkedin": req.custom_linkedin or base_profile["linkedin"],
+        "github": req.custom_github or base_profile["github"],
+        "portfolio": req.custom_portfolio or base_profile["portfolio"],
+        "education": req.custom_education or base_profile["education"],
+        "graduation_year": req.custom_graduation_year or base_profile["graduation_year"],
+        "company_1_name": req.custom_company_1_name or base_profile["company_1_name"],
+        "company_1_role": req.custom_company_1_role or base_profile.get("company_1_role", ""),
+        "company_1_location": req.custom_company_1_location or base_profile["company_1_location"],
+        "company_1_duration": req.custom_company_1_duration or base_profile["company_1_duration"],
+        "company_2_name": req.custom_company_2_name or base_profile["company_2_name"],
+        "company_2_role": req.custom_company_2_role or base_profile.get("company_2_role", ""),
+        "company_2_location": req.custom_company_2_location or base_profile["company_2_location"],
+        "company_2_duration": req.custom_company_2_duration or base_profile["company_2_duration"],
+    }
+
+    role_key = req.role_key or "software_engineer"
+    template = get_template(role_key)
+    if not template:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    if req.custom_summary or req.custom_skills:
+        from resume_templates import ROLE_TEMPLATES, _ResumePDF
+        tmpl = copy.deepcopy(template)
+        if req.custom_summary:
+            tmpl["summary"] = req.custom_summary
+        if req.custom_skills:
+            tmpl["skills"] = req.custom_skills
+        pdf_bytes = _generate_from_template(tmpl, profile)
+    else:
+        pdf_bytes = generate_pdf_resume(role_key, profile)
+
+    name_slug = (profile.get("name") or "Resume").replace(" ", "_")
+    role_slug = template["title"].replace(" ", "_")
+    filename = f"{name_slug}_{role_slug}_Resume.pdf"
+
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+_TECTONIC_DIR = Path(__file__).parent / "bin"
+
+
+def _find_latex_compiler() -> tuple[str, str]:
+    """Find a LaTeX compiler. Auto-downloads tectonic if none found."""
+    import shutil as _shutil
+
+    for cmd in ("tectonic", "pdflatex", "xelatex", "lualatex"):
+        path = _shutil.which(cmd)
+        if path:
+            return path, cmd
+
+    local = _TECTONIC_DIR / "tectonic"
+    if local.exists() and os.access(str(local), os.X_OK):
+        return str(local), "tectonic"
+
+    return _download_tectonic(), "tectonic"
+
+
+def _download_tectonic() -> str:
+    """Download tectonic binary from GitHub releases (no sudo needed)."""
+    import platform
+    import urllib.request
+    import tarfile
+    import zipfile
+    import json
+
+    _TECTONIC_DIR.mkdir(parents=True, exist_ok=True)
+    target = _TECTONIC_DIR / "tectonic"
+
+    machine = platform.machine().lower()
+    system = platform.system().lower()
+
+    if machine in ("x86_64", "amd64"):
+        arch = "x86_64"
+    elif machine in ("aarch64", "arm64"):
+        arch = "aarch64"
+    else:
+        raise RuntimeError(f"Unsupported architecture: {machine}")
+
+    logger.info("Downloading tectonic binary (arch=%s, os=%s)...", arch, system)
+
+    api_url = "https://api.github.com/repos/tectonic-typesetting/tectonic/releases/latest"
+    req = urllib.request.Request(api_url, headers={"Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        release = json.loads(resp.read())
+
+    asset_url = None
+    for asset in release.get("assets", []):
+        name = asset["name"].lower()
+        if arch in name and system in name and (name.endswith(".tar.gz") or name.endswith(".zip")):
+            asset_url = asset["browser_download_url"]
+            break
+
+    if not asset_url:
+        names = [a["name"] for a in release.get("assets", [])]
+        raise RuntimeError(
+            f"Could not find tectonic binary for {system}/{arch}. "
+            f"Available: {names}"
+        )
+
+    logger.info("Downloading %s", asset_url)
+    dl_path = _TECTONIC_DIR / "tectonic_download"
+    urllib.request.urlretrieve(asset_url, str(dl_path))
+
+    if asset_url.endswith(".tar.gz"):
+        with tarfile.open(str(dl_path), "r:gz") as tf:
+            for member in tf.getmembers():
+                if member.name.endswith("tectonic") or member.name == "tectonic":
+                    member.name = "tectonic"
+                    tf.extract(member, path=str(_TECTONIC_DIR))
+                    break
+    elif asset_url.endswith(".zip"):
+        with zipfile.ZipFile(str(dl_path)) as zf:
+            for name in zf.namelist():
+                if name.endswith("tectonic") or name == "tectonic":
+                    data = zf.read(name)
+                    target.write_bytes(data)
+                    break
+
+    dl_path.unlink(missing_ok=True)
+
+    if not target.exists():
+        raise RuntimeError("Failed to extract tectonic binary from download")
+
+    target.chmod(0o755)
+    logger.info("Tectonic installed to %s", target)
+    return str(target)
+
+
+@app.post("/resume/compile-latex")
+def compile_latex_to_pdf(req: CompileLatexRequest):
+    """Compile raw LaTeX source to PDF using tectonic or pdflatex."""
+    import subprocess
+    import tempfile
+
+    try:
+        compiler_path, compiler_name = _find_latex_compiler()
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tex_path = Path(tmpdir) / "resume.tex"
+        tex_path.write_text(req.latex, encoding="utf-8")
+
+        if compiler_name == "tectonic":
+            cmd = [compiler_path, "--outdir", tmpdir, str(tex_path)]
+        else:
+            cmd = [compiler_path, "-interaction=nonstopmode", "-halt-on-error",
+                   "-output-directory", tmpdir, str(tex_path)]
+            # Run twice for cross-references
+            subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        pdf_path = Path(tmpdir) / "resume.pdf"
+        if not pdf_path.exists():
+            log_path = Path(tmpdir) / "resume.log"
+            log_text = log_path.read_text(encoding="utf-8", errors="replace") if log_path.exists() else ""
+            error_lines = [l for l in log_text.splitlines() if l.startswith("!")]
+            stderr = result.stderr or ""
+            stdout = result.stdout or ""
+            if error_lines:
+                detail = "\n".join(error_lines[:10])
+            elif stderr:
+                detail = stderr[-2000:]
+            elif stdout:
+                detail = stdout[-2000:]
+            else:
+                detail = "Compilation failed with no output"
+            raise HTTPException(status_code=422, detail=detail)
+
+        pdf_bytes = pdf_path.read_bytes()
+
+    filename = req.filename if req.filename.endswith(".pdf") else req.filename + ".pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _generate_from_template(template: dict, profile: dict) -> bytes:
+    """Generate PDF from a modified template dict."""
+    from resume_templates import _ResumePDF, _sanitize
+
+    name = (profile.get("name") or "YOUR NAME").upper()
+    email = profile.get("email") or ""
+    phone = profile.get("phone") or ""
+    location = profile.get("location") or ""
+    linkedin = (profile.get("linkedin") or "").replace("https://", "").rstrip("/")
+    github = (profile.get("github") or "").replace("https://", "").rstrip("/")
+    portfolio = (profile.get("portfolio") or "").replace("https://", "").rstrip("/")
+    education = profile.get("education") or ""
+    grad_year = profile.get("graduation_year") or ""
+
+    pdf = _ResumePDF()
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(20, 20, 20)
+    pdf.cell(w=0, h=9, text=name, align="C", new_x="LMARGIN", new_y="NEXT")
+
+    contact_parts = [p for p in [email, phone, location] if p]
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(w=0, h=4.5, text="  |  ".join(contact_parts),
+             align="C", new_x="LMARGIN", new_y="NEXT")
+
+    link_parts = [p for p in [linkedin, github, portfolio] if p]
+    if link_parts:
+        pdf.cell(w=0, h=4.5, text="  |  ".join(link_parts),
+                 align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+
+    pdf.section_header("Professional Summary")
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_text_color(50, 50, 50)
+    pdf.multi_cell(w=0, h=4, text=template["summary"])
+    pdf.ln(1.5)
+
+    pdf.section_header("Technical Skills")
+    for category, skill_list in template["skills"].items():
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(40, 40, 40)
+        pdf.cell(w=38, h=4.5, text=f"{category}:")
+        pdf.set_font("Helvetica", "", 8.5)
+        pdf.set_text_color(60, 60, 60)
+        pdf.multi_cell(w=0, h=4.5, text=", ".join(skill_list))
+        pdf.ln(0.2)
+    pdf.ln(1)
+
+    pdf.section_header("Professional Experience")
+    c1_name = profile.get("company_1_name") or "Current Company"
+    c1_loc = profile.get("company_1_location") or ""
+    c1_dur = profile.get("company_1_duration") or "Jan 2024 -- Present"
+    c2_name = profile.get("company_2_name") or "Previous Company"
+    c2_loc = profile.get("company_2_location") or ""
+    c2_dur = profile.get("company_2_duration") or "Jul 2022 -- Dec 2023"
+
+    exp = template["experience"]
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(w=0, h=5, text=template["title"])
+    pdf.set_font("Helvetica", "I", 8.5)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(w=0, h=5, text=c1_dur, align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(w=0, h=4, text=", ".join(p for p in [c1_name, c1_loc] if p),
+             new_x="LMARGIN", new_y="NEXT")
+    if len(exp) > 0:
+        for b in exp[0].get("bullets", []):
+            pdf.bullet(b)
+    pdf.ln(1)
+
+    prev_title = template.get("previous_title", f"Junior {template['title']}")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(w=0, h=5, text=prev_title)
+    pdf.set_font("Helvetica", "I", 8.5)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(w=0, h=5, text=c2_dur, align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(w=0, h=4, text=", ".join(p for p in [c2_name, c2_loc] if p),
+             new_x="LMARGIN", new_y="NEXT")
+    if len(exp) > 1:
+        for b in exp[1].get("bullets", []):
+            pdf.bullet(b)
+    pdf.ln(1)
+
+    pdf.section_header("Key Projects")
+    for project in template["projects"]:
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(30, 30, 30)
+        pdf.cell(w=0, h=5, text=project["name"])
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.set_text_color(100, 100, 100)
+        pdf.cell(w=0, h=5, text=project["stack"], align="R", new_x="LMARGIN", new_y="NEXT")
+        for b in project["bullets"]:
+            pdf.bullet(b)
+        pdf.ln(0.5)
+    pdf.ln(0.5)
+
+    pdf.section_header("Education")
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(30, 30, 30)
+    pdf.cell(w=0, h=5, text=education)
+    pdf.set_font("Helvetica", "", 8.5)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(w=0, h=5, text=grad_year, align="R", new_x="LMARGIN", new_y="NEXT")
+    cw = template.get("coursework", "Data Structures, Algorithms, Databases, Statistics, Software Engineering")
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(w=0, h=4, text=f"Relevant coursework: {cw}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(1)
+
+    pdf.section_header("Certifications")
+    for cert in template["certifications"]:
+        pdf.bullet(cert, indent=2)
+    pdf.ln(0.5)
+
+    pdf.section_header("Achievements")
+    for ach in template["achievements"]:
+        pdf.bullet(ach, indent=2)
+
+    return bytes(pdf.output())
+
+
+@app.patch("/records/{record_id}/cc")
+def update_record_cc(record_id: int, data: UpdateCCRequest, db: Session = Depends(_get_db)):
+    """Update just the CC emails on a record."""
+    record = db.query(Record).filter(Record.id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    record.cc_emails = data.cc_emails
+    db.commit()
+    db.refresh(record)
+    return {"id": record.id, "cc_emails": record.cc_emails}
+
+
 @app.post("/resumes/generate")
 def regenerate_resumes():
-    """
-    Regenerate all cached PDF resumes.
-
-    Call this after updating personal details in .env.
-    Overwrites every PDF in generated_resumes/ with fresh data.
-    """
     load_dotenv(override=True)
     count = _generate_all_resumes()
     return {"detail": f"Regenerated {count} resume PDFs."}
@@ -653,39 +962,50 @@ def regenerate_resumes():
 
 @app.get("/resumes/status")
 def resume_cache_status():
-    """
-    Check how many resume PDFs are cached.
-
-    Returns total role count and cached file count so the
-    frontend can show whether resumes are ready.
-    """
     total = len(ROLE_TEMPLATES)
     cached = sum(1 for t in ROLE_TEMPLATES if (RESUME_DIR / f"{t['key']}.pdf").exists())
     return {"total": total, "cached": cached, "ready": cached == total}
 
 
-# ── Mail Queue (CRUD) ──────────────────────────────────────────────────────
-
 @app.get("/records", response_model=list[RecordOut])
 def list_records(db: Session = Depends(_get_db)):
-    """Return all queued records, newest first."""
     return db.query(Record).order_by(Record.created_at.desc()).all()
 
 
 @app.post("/records", response_model=RecordOut)
 def create_record(data: RecordCreate, db: Session = Depends(_get_db)):
-    """
-    Add a new email record to the queue.
+    from email_checker import validate_syntax, check_typo, check_mx, check_disposable
+    to = data.to_email.strip().lower()
 
-    No file upload needed — the resume PDF is auto-generated
-    at send time based on the selected role.
-    """
+    ok, reason = validate_syntax(to)
+    if not ok:
+        raise HTTPException(status_code=422, detail=f"Invalid email: {reason}")
+
+    has_typo, suggestion, typo_detail = check_typo(to)
+    if has_typo:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Possible typo in email domain: {typo_detail}. Did you mean {suggestion}?"
+        )
+
+    ok, reason = check_disposable(to)
+    if not ok:
+        raise HTTPException(status_code=422, detail=f"Blocked: {reason}")
+
+    domain = to.rsplit("@", 1)[-1]
+    mx_ok, mx_reason, _ = check_mx(domain)
+    if not mx_ok:
+        raise HTTPException(status_code=422, detail=f"Email domain invalid: {mx_reason}")
+
     record = Record(
-        to_email=data.to_email,
+        to_email=to,
+        cc_emails=data.cc_emails,
         hr_name=data.hr_name,
         company_name=data.company_name,
         role_key=data.role_key,
         message_type=data.message_type,
+        custom_subject=data.custom_subject,
+        custom_body=data.custom_body,
     )
     db.add(record)
     db.commit()
@@ -695,15 +1015,17 @@ def create_record(data: RecordCreate, db: Session = Depends(_get_db)):
 
 @app.put("/records/{record_id}", response_model=RecordOut)
 def update_record(record_id: int, data: RecordCreate, db: Session = Depends(_get_db)):
-    """Update an existing record in the queue."""
     record = db.query(Record).filter(Record.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
     record.to_email = data.to_email
+    record.cc_emails = data.cc_emails
     record.hr_name = data.hr_name
     record.company_name = data.company_name
     record.role_key = data.role_key
     record.message_type = data.message_type
+    record.custom_subject = data.custom_subject
+    record.custom_body = data.custom_body
     db.commit()
     db.refresh(record)
     return record
@@ -711,7 +1033,6 @@ def update_record(record_id: int, data: RecordCreate, db: Session = Depends(_get
 
 @app.delete("/records/{record_id}")
 def delete_record(record_id: int, db: Session = Depends(_get_db)):
-    """Delete a single record from the queue."""
     record = db.query(Record).filter(Record.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -722,22 +1043,13 @@ def delete_record(record_id: int, db: Session = Depends(_get_db)):
 
 @app.delete("/records")
 def clear_all_records(db: Session = Depends(_get_db)):
-    """Delete all records from the queue."""
     count = db.query(Record).delete()
     db.commit()
     return {"detail": f"Cleared {count} record(s)"}
 
 
-# ── Send Operations ────────────────────────────────────────────────────────
-
 @app.post("/records/{record_id}/send", response_model=SendResult)
 def send_one(record_id: int, db: Session = Depends(_get_db)):
-    """
-    Send a single record's email.
-
-    On success: record is deleted from the queue.
-    On failure: record stays for retry, error is returned.
-    """
     record = db.query(Record).filter(Record.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
@@ -753,19 +1065,6 @@ def send_one(record_id: int, db: Session = Depends(_get_db)):
 
 @app.post("/send-all", response_model=SendResult)
 def send_all(db: Session = Depends(_get_db)):
-    """
-    Send all queued records.
-
-    For each record:
-        1. Auto-generate PDF resume for the selected role
-        2. Compose email using the selected message template
-        3. Send via SMTP with PDF attached
-        4. On success → delete that record from queue
-        5. On failure → keep that record, include error in response
-
-    After execution, only failed records remain in the queue.
-    Successful records are permanently removed to prevent duplicates.
-    """
     records = db.query(Record).all()
     if not records:
         raise HTTPException(
@@ -785,7 +1084,6 @@ def send_all(db: Session = Depends(_get_db)):
             failed += 1
             errors.append(result)
 
-    # Commit all changes (deletions of successful records)
     db.commit()
 
     return SendResult(sent=sent, failed=failed, errors=errors)

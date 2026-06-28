@@ -6,3 +6,4 @@ pydantic
 python-dotenv
 email-validator
 fpdf2
+psycopg2-binary

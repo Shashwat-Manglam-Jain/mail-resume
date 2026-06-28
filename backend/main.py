@@ -37,8 +37,10 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from email.message import EmailMessage
 
-from database import Base, SessionLocal, engine
+from database import Base, SessionLocal, engine, NeonSessionLocal
 from models import Record
+from neon_models import (Company as NeonCompany, Job as NeonJob,
+                         Contact as NeonContact, SentCompany, Application)
 from email_checker import validate_email_full
 from resume_templates import (
     get_template,
@@ -528,6 +530,26 @@ def _send_single_record(record: Record, db: Session) -> dict:
             "skipped_cc": skipped_cc,
         }
 
+    if record.company_name and NeonSessionLocal:
+        try:
+            ndb = NeonSessionLocal()
+            from datetime import datetime as _dt
+            existing = ndb.query(SentCompany).filter(
+                SentCompany.company_name == record.company_name.lower().strip(),
+                SentCompany.email_used == record.to_email.lower().strip(),
+            ).first()
+            if not existing:
+                ndb.add(SentCompany(
+                    company_name=record.company_name.lower().strip(),
+                    email_used=record.to_email.lower().strip(),
+                    sent_via=os.getenv("SMTP_USER", ""),
+                    month_key=_dt.now().strftime("%Y-%m"),
+                ))
+                ndb.commit()
+            ndb.close()
+        except Exception:
+            pass
+
     db.delete(record)
     return {
         "id": record.id,
@@ -539,6 +561,16 @@ def _send_single_record(record: Record, db: Session) -> dict:
 
 def _get_db():
     db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def _get_neon_db():
+    if NeonSessionLocal is None:
+        raise HTTPException(status_code=503, detail="Neon DB not configured")
+    db = NeonSessionLocal()
     try:
         yield db
     finally:
@@ -1087,3 +1119,228 @@ def send_all(db: Session = Depends(_get_db)):
     db.commit()
 
     return SendResult(sent=sent, failed=failed, errors=errors)
+
+
+# ── Scraped Jobs (Neon DB) ───────────────────────────────────────────────
+
+class JobOut(BaseModel):
+    id: int
+    company_name: str = ""
+    company_domain: str | None = None
+    source: str = ""
+    title: str = ""
+    url: str | None = None
+    location: str | None = None
+    role_key: str | None = None
+    match_confidence: float | None = None
+    posted_at: str | None = None
+    contacts: list[dict] = []
+
+    class Config:
+        from_attributes = True
+
+
+class QueueFromJobRequest(BaseModel):
+    contact_email: str
+    hr_name: str = ""
+    role_key: str = ""
+    message_type: str = "job_apply"
+
+
+class AddContactRequest(BaseModel):
+    email: str
+    name: str = ""
+    title: str = ""
+
+
+@app.get("/scraped-jobs")
+def list_scraped_jobs(
+    source: str | None = None,
+    has_email: bool | None = None,
+    search: str | None = None,
+    role_key: str | None = None,
+    include_sent: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+    ndb: Session = Depends(_get_neon_db),
+):
+    q = ndb.query(NeonJob).join(NeonCompany)
+
+    if not include_sent:
+        from sqlalchemy import func as sa_func
+        sent_sub = ndb.query(SentCompany.company_name).distinct()
+        q = q.filter(~sa_func.lower(sa_func.trim(NeonCompany.name)).in_(sent_sub))
+
+    if source:
+        q = q.filter(NeonJob.source == source)
+    if role_key:
+        q = q.filter(NeonJob.role_key == role_key)
+    if search:
+        pattern = f"%{search}%"
+        q = q.filter(
+            (NeonJob.title.ilike(pattern)) | (NeonCompany.name.ilike(pattern))
+        )
+    if has_email is not None:
+        sub = ndb.query(NeonContact.company_id).distinct()
+        if has_email:
+            q = q.filter(NeonJob.company_id.in_(sub))
+        else:
+            q = q.filter(~NeonJob.company_id.in_(sub))
+
+    total = q.count()
+    jobs = q.order_by(NeonJob.scraped_at.desc()).offset(offset).limit(limit).all()
+
+    results = []
+    for job in jobs:
+        contacts = [
+            {"email": c.email, "name": c.name, "title": c.title, "confidence": c.confidence}
+            for c in (job.company.contacts if job.company else [])
+        ]
+        results.append(JobOut(
+            id=job.id,
+            company_name=job.company.name if job.company else "",
+            company_domain=job.company.domain if job.company else None,
+            source=job.source,
+            title=job.title,
+            url=job.url,
+            location=job.location,
+            role_key=job.role_key,
+            match_confidence=job.match_confidence,
+            posted_at=job.posted_at,
+            contacts=contacts,
+        ))
+
+    return {"total": total, "jobs": results}
+
+
+@app.get("/scraped-jobs/no-email")
+def list_jobs_no_email(
+    limit: int = 100,
+    offset: int = 0,
+    ndb: Session = Depends(_get_neon_db),
+):
+    companies_with_contacts = ndb.query(NeonContact.company_id).distinct()
+    q = (
+        ndb.query(NeonJob)
+        .join(NeonCompany)
+        .filter(~NeonJob.company_id.in_(companies_with_contacts))
+    )
+    total = q.count()
+    jobs = q.order_by(NeonJob.scraped_at.desc()).offset(offset).limit(limit).all()
+
+    results = []
+    for job in jobs:
+        results.append(JobOut(
+            id=job.id,
+            company_name=job.company.name if job.company else "",
+            company_domain=job.company.domain if job.company else None,
+            source=job.source,
+            title=job.title,
+            url=job.url,
+            location=job.location,
+            role_key=job.role_key,
+            match_confidence=job.match_confidence,
+            posted_at=job.posted_at,
+            contacts=[],
+        ))
+
+    return {"total": total, "jobs": results}
+
+
+@app.get("/scraped-jobs/sources")
+def list_sources(ndb: Session = Depends(_get_neon_db)):
+    rows = ndb.query(NeonJob.source).distinct().all()
+    return [r[0] for r in rows if r[0]]
+
+
+@app.post("/scraped-jobs/{job_id}/queue")
+def queue_from_scraped_job(
+    job_id: int,
+    body: QueueFromJobRequest,
+    ndb: Session = Depends(_get_neon_db),
+    db: Session = Depends(_get_db),
+):
+    job = ndb.query(NeonJob).get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    company = job.company
+
+    record = Record(
+        to_email=body.contact_email,
+        cc_emails="",
+        hr_name=body.hr_name,
+        company_name=company.name if company else "",
+        role_key=body.role_key or job.role_key or "",
+        message_type=body.message_type,
+        custom_subject="",
+        custom_body="",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    return {"id": record.id, "status": "queued"}
+
+
+@app.post("/scraped-jobs/{job_id}/add-contact")
+def add_contact_to_job(
+    job_id: int,
+    body: AddContactRequest,
+    ndb: Session = Depends(_get_neon_db),
+):
+    job = ndb.query(NeonJob).get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    contact = NeonContact(
+        company_id=job.company_id,
+        email=body.email,
+        name=body.name,
+        title=body.title,
+        confidence=1.0,
+        source="manual",
+        verified=False,
+    )
+    ndb.add(contact)
+    ndb.commit()
+    ndb.refresh(contact)
+
+    return {"id": contact.id, "email": contact.email, "company_id": contact.company_id}
+
+
+@app.get("/sent-companies")
+def list_sent_companies(
+    limit: int = 200,
+    offset: int = 0,
+    ndb: Session = Depends(_get_neon_db),
+):
+    q = ndb.query(SentCompany).order_by(SentCompany.sent_at.desc())
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "companies": [
+            {
+                "id": r.id,
+                "company_name": r.company_name,
+                "email_used": r.email_used,
+                "sent_at": r.sent_at.isoformat() if r.sent_at else None,
+                "sent_via": r.sent_via,
+                "month_key": r.month_key,
+            }
+            for r in rows
+        ],
+    }
+
+
+@app.post("/clear-monthly")
+def clear_monthly_scraped_data(ndb: Session = Depends(_get_neon_db)):
+    apps_del = ndb.query(Application).delete()
+    contacts_del = ndb.query(NeonContact).delete()
+    jobs_del = ndb.query(NeonJob).delete()
+    companies_del = ndb.query(NeonCompany).delete()
+    ndb.commit()
+    return {
+        "detail": f"Cleared {companies_del} companies, {jobs_del} jobs, {contacts_del} contacts, {apps_del} applications. Sent history preserved.",
+    }

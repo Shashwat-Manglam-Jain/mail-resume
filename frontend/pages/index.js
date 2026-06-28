@@ -33,6 +33,18 @@ export default function Home() {
   const [ccDraft, setCcDraft] = useState("");
   const [showCC, setShowCC] = useState(false);
 
+  // Scraped Jobs tab state
+  const [scrapedJobs, setScrapedJobs] = useState([]);
+  const [scrapedTotal, setScrapedTotal] = useState(0);
+  const [scrapedSources, setScrapedSources] = useState([]);
+  const [sjFilter, setSjFilter] = useState({ source: "", has_email: "", search: "", role_key: "" });
+  const [sjPage, setSjPage] = useState(0);
+  const [sjLoading, setSjLoading] = useState(false);
+  const [addEmailJobId, setAddEmailJobId] = useState(null);
+  const [addEmailForm, setAddEmailForm] = useState({ email: "", name: "", title: "" });
+  const [sentCompanies, setSentCompanies] = useState([]);
+  const [sentTotal, setSentTotal] = useState(0);
+
   useEffect(() => {
     fetchProfile();
     fetchRoles();
@@ -277,6 +289,100 @@ export default function Home() {
     } catch (err) { setStatus(err.message); }
   }
 
+  /* ── Scraped Jobs Tab ──────────────────────────────────────────────── */
+  async function fetchScrapedJobs(page = 0) {
+    setSjLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (sjFilter.source) params.set("source", sjFilter.source);
+      if (sjFilter.has_email === "yes") params.set("has_email", "true");
+      if (sjFilter.has_email === "no") params.set("has_email", "false");
+      if (sjFilter.search) params.set("search", sjFilter.search);
+      if (sjFilter.role_key) params.set("role_key", sjFilter.role_key);
+      params.set("limit", "50");
+      params.set("offset", String(page * 50));
+      const res = await fetch(`${API}/scraped-jobs?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setScrapedJobs(data.jobs);
+        setScrapedTotal(data.total);
+      }
+    } catch { setStatus("Cannot load scraped jobs."); }
+    finally { setSjLoading(false); }
+  }
+
+  async function fetchScrapedSources() {
+    try {
+      const res = await fetch(`${API}/scraped-jobs/sources`);
+      if (res.ok) setScrapedSources(await res.json());
+    } catch {}
+  }
+
+  async function queueScrapedJob(jobId, contactEmail, companyName, roleKey) {
+    try {
+      const res = await fetch(`${API}/scraped-jobs/${jobId}/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_email: contactEmail, hr_name: "", role_key: roleKey || "", message_type: "job_apply" }),
+      });
+      if (res.ok) {
+        setStatus(`Queued email to ${contactEmail} (${companyName})`);
+        await fetchRecords();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setStatus(err.detail || "Failed to queue.");
+      }
+    } catch (err) { setStatus(`Queue error: ${err.message}`); }
+  }
+
+  async function addContactToJob(jobId) {
+    if (!addEmailForm.email) { setStatus("Enter an email address."); return; }
+    try {
+      const res = await fetch(`${API}/scraped-jobs/${jobId}/add-contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(addEmailForm),
+      });
+      if (res.ok) {
+        setStatus("Contact added.");
+        setAddEmailJobId(null);
+        setAddEmailForm({ email: "", name: "", title: "" });
+        fetchScrapedJobs(sjPage);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setStatus(err.detail || "Failed to add contact.");
+      }
+    } catch (err) { setStatus(`Error: ${err.message}`); }
+  }
+
+  async function fetchSentCompanies() {
+    try {
+      const res = await fetch(`${API}/sent-companies?limit=500`);
+      if (res.ok) {
+        const data = await res.json();
+        setSentCompanies(data.companies);
+        setSentTotal(data.total);
+      }
+    } catch {}
+  }
+
+  async function clearMonthlyData() {
+    if (!confirm("Clear all scraped jobs/companies data? Sent history will be preserved.")) return;
+    try {
+      const res = await fetch(`${API}/clear-monthly`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data.detail);
+        fetchScrapedJobs(0);
+        setSjPage(0);
+      }
+    } catch (err) { setStatus(`Error: ${err.message}`); }
+  }
+
+  useEffect(() => {
+    if (tab === "scraped") { fetchScrapedJobs(sjPage); fetchScrapedSources(); fetchSentCompanies(); }
+  }, [tab, sjPage]);
+
   /* ── Resume Preview Tab ────────────────────────────────────────────── */
   const [previewRole, setPreviewRole] = useState("");
   const [cacheStatus, setCacheStatus] = useState(null);
@@ -389,6 +495,10 @@ export default function Home() {
         <button className={tab === "queue" ? "tab active" : "tab"} onClick={() => setTab("queue")}>
           Mail Queue
           {totalCount > 0 && <span className="tab-badge">{totalCount}</span>}
+        </button>
+        <button className={tab === "scraped" ? "tab active" : "tab"} onClick={() => setTab("scraped")}>
+          Scraped Jobs
+          {scrapedTotal > 0 && <span className="tab-badge">{scrapedTotal}</span>}
         </button>
         <button className={tab === "resume" ? "tab active" : "tab"} onClick={() => setTab("resume")}>
           Resume Preview
@@ -696,6 +806,180 @@ export default function Home() {
               <p className="empty-state">No records in queue. Add emails above and hit &quot;Send All&quot; to deliver.</p>
             )}
           </div>
+        </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* TAB: Scraped Jobs                                              */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {tab === "scraped" && (
+        <>
+          <div className="card">
+            <div className="queue-header">
+              <div>
+                <h2>Scraped Jobs</h2>
+                <p className="subtitle">
+                  Jobs scraped by auto-job-applier. {sentTotal > 0 && <strong>{sentTotal} companies contacted so far.</strong>}
+                </p>
+              </div>
+              <div className="actions">
+                <button className="btn-secondary btn-sm" onClick={clearMonthlyData}>
+                  Clear Monthly Data
+                </button>
+              </div>
+            </div>
+
+            <div className="form-grid" style={{marginBottom: 12}}>
+              <label>
+                Source
+                <select value={sjFilter.source} onChange={e => { setSjFilter(f => ({...f, source: e.target.value})); setSjPage(0); }}>
+                  <option value="">All Sources</option>
+                  {scrapedSources.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label>
+                Email Status
+                <select value={sjFilter.has_email} onChange={e => { setSjFilter(f => ({...f, has_email: e.target.value})); setSjPage(0); }}>
+                  <option value="">All</option>
+                  <option value="yes">Has Email</option>
+                  <option value="no">No Email</option>
+                </select>
+              </label>
+              <label>
+                Search
+                <input type="text" value={sjFilter.search} placeholder="Company or title..."
+                  onChange={e => setSjFilter(f => ({...f, search: e.target.value}))} />
+              </label>
+              <label>
+                <span>&nbsp;</span>
+                <button className="btn-primary" onClick={() => { setSjPage(0); fetchScrapedJobs(0); }}>
+                  {sjLoading ? "Loading..." : "Search"}
+                </button>
+              </label>
+            </div>
+
+            <p className="subtitle">{scrapedTotal} job(s) found</p>
+
+            {scrapedJobs.length > 0 ? (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Company</th>
+                      <th>Title</th>
+                      <th>Source</th>
+                      <th>Location</th>
+                      <th>Contact</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scrapedJobs.map((job, i) => (
+                      <tr key={job.id}>
+                        <td className="cell-num">{sjPage * 50 + i + 1}</td>
+                        <td>
+                          <strong>{job.company_name}</strong>
+                          {job.company_domain && <div style={{fontSize:"0.8em",color:"#888"}}>{job.company_domain}</div>}
+                        </td>
+                        <td>
+                          {job.url ? <a href={job.url} target="_blank" rel="noopener noreferrer">{job.title}</a> : job.title}
+                        </td>
+                        <td><span className="role-tag">{job.source}</span></td>
+                        <td>{job.location || "Remote"}</td>
+                        <td className="cell-cc">
+                          {job.contacts.length > 0 ? (
+                            <div className="cc-tags">
+                              {job.contacts.map((c, j) => (
+                                <span key={j} className="cc-tag" title={`${c.name || ""} ${c.title || ""} (${Math.round((c.confidence||0)*100)}%)`}>
+                                  {c.email}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            addEmailJobId === job.id ? (
+                              <div className="cc-edit-inline">
+                                <input type="email" placeholder="email@company.com" value={addEmailForm.email}
+                                  onChange={e => setAddEmailForm(f => ({...f, email: e.target.value}))}
+                                  className="cc-edit-input" autoFocus />
+                                <input type="text" placeholder="Name (optional)" value={addEmailForm.name}
+                                  onChange={e => setAddEmailForm(f => ({...f, name: e.target.value}))}
+                                  className="cc-edit-input" />
+                                <div className="cc-edit-btns">
+                                  <button className="btn-send btn-xs" onClick={() => addContactToJob(job.id)}>Save</button>
+                                  <button className="btn-delete btn-xs" onClick={() => { setAddEmailJobId(null); setAddEmailForm({email:"",name:"",title:""}); }}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="cc-add-hint" onClick={() => setAddEmailJobId(job.id)}>+ Add Email</span>
+                            )
+                          )}
+                        </td>
+                        <td className="cell-actions">
+                          {job.contacts.length > 0 && (
+                            <button className="btn-send btn-xs"
+                              onClick={() => queueScrapedJob(job.id, job.contacts[0].email, job.company_name, job.role_key)}>
+                              Queue
+                            </button>
+                          )}
+                          {job.contacts.length === 0 && addEmailJobId !== job.id && (
+                            <button className="btn-edit btn-xs" onClick={() => setAddEmailJobId(job.id)}>
+                              Add Email
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="empty-state">{sjLoading ? "Loading..." : "No scraped jobs found. Run auto-job-applier first."}</p>
+            )}
+
+            {scrapedTotal > 50 && (
+              <div className="actions" style={{justifyContent:"center", gap:8, marginTop:12}}>
+                <button className="btn-secondary btn-sm" disabled={sjPage === 0} onClick={() => setSjPage(p => p - 1)}>
+                  Previous
+                </button>
+                <span>Page {sjPage + 1} of {Math.ceil(scrapedTotal / 50)}</span>
+                <button className="btn-secondary btn-sm" disabled={(sjPage + 1) * 50 >= scrapedTotal} onClick={() => setSjPage(p => p + 1)}>
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+
+          {sentCompanies.length > 0 && (
+            <div className="card">
+              <h2>Sent History ({sentTotal})</h2>
+              <p className="subtitle">Companies you have already contacted. These are excluded from scraped jobs above.</p>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Company</th>
+                      <th>Email Used</th>
+                      <th>Sent At</th>
+                      <th>Via</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sentCompanies.map((sc, i) => (
+                      <tr key={sc.id}>
+                        <td className="cell-num">{i + 1}</td>
+                        <td><strong>{sc.company_name}</strong></td>
+                        <td>{sc.email_used}</td>
+                        <td>{sc.sent_at ? new Date(sc.sent_at).toLocaleDateString() : "—"}</td>
+                        <td>{sc.sent_via || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
 

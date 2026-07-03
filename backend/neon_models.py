@@ -36,6 +36,7 @@ class Job(NeonBase):
     match_confidence = Column(Float)
     posted_at = Column(String(100))
     scraped_at = Column(DateTime, server_default=func.now())
+    needs_manual_apply = Column(Boolean, default=False)
 
     company = relationship("Company", back_populates="jobs")
     applications = relationship("Application", back_populates="job")
@@ -83,3 +84,17 @@ class SentCompany(NeonBase):
     sent_at = Column(DateTime, server_default=func.now())
     sent_via = Column(String(255), default="")
     month_key = Column(String(7), default="")
+
+
+class CareerApplication(NeonBase):
+    __tablename__ = "career_applications"
+
+    id = Column(Integer, primary_key=True)
+    company_name = Column(String(255), nullable=False)
+    job_title = Column(String(500), default="")
+    job_url = Column(String(1000), nullable=False)
+    ats_type = Column(String(50), default="generic")
+    status = Column(String(50), default="pending")
+    fields_filled = Column(Integer, default=0)
+    error = Column(Text, default="")
+    applied_at = Column(DateTime, server_default=func.now())

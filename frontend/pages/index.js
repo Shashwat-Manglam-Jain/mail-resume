@@ -45,6 +45,13 @@ export default function Home() {
   const [sentCompanies, setSentCompanies] = useState([]);
   const [sentTotal, setSentTotal] = useState(0);
 
+  // Manual Apply tab state
+  const [manualJobs, setManualJobs] = useState([]);
+  const [manualTotal, setManualTotal] = useState(0);
+  const [careerApps, setCareerApps] = useState([]);
+  const [careerTotal, setCareerTotal] = useState(0);
+  const [manualLoading, setManualLoading] = useState(false);
+
   useEffect(() => {
     fetchProfile();
     fetchRoles();
@@ -381,7 +388,23 @@ export default function Home() {
 
   useEffect(() => {
     if (tab === "scraped") { fetchScrapedJobs(sjPage); fetchScrapedSources(); fetchSentCompanies(); }
+    if (tab === "manual") { fetchManualJobs(); fetchCareerApps(); }
   }, [tab, sjPage]);
+
+  async function fetchManualJobs() {
+    setManualLoading(true);
+    try {
+      const res = await fetch(`${API}/manual-apply-jobs?limit=200`);
+      if (res.ok) { const data = await res.json(); setManualJobs(data.jobs); setManualTotal(data.total); }
+    } catch {} finally { setManualLoading(false); }
+  }
+
+  async function fetchCareerApps() {
+    try {
+      const res = await fetch(`${API}/career-applications?limit=200`);
+      if (res.ok) { const data = await res.json(); setCareerApps(data.applications); setCareerTotal(data.total); }
+    } catch {}
+  }
 
   /* ── Resume Preview Tab ────────────────────────────────────────────── */
   const [previewRole, setPreviewRole] = useState("");
@@ -499,6 +522,10 @@ export default function Home() {
         <button className={tab === "scraped" ? "tab active" : "tab"} onClick={() => setTab("scraped")}>
           Scraped Jobs
           {scrapedTotal > 0 && <span className="tab-badge">{scrapedTotal}</span>}
+        </button>
+        <button className={tab === "manual" ? "tab active" : "tab"} onClick={() => setTab("manual")}>
+          Manual Apply
+          {manualTotal > 0 && <span className="tab-badge">{manualTotal}</span>}
         </button>
         <button className={tab === "resume" ? "tab active" : "tab"} onClick={() => setTab("resume")}>
           Resume Preview
@@ -986,6 +1013,93 @@ export default function Home() {
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* TAB: Resume Preview                                           */}
       {/* ══════════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* TAB: Manual Apply                                            */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {tab === "manual" && (
+        <>
+          <div className="card">
+            <h2>Jobs Needing Manual Apply</h2>
+            <p className="subtitle">
+              These jobs failed auto-apply (CAPTCHA, incomplete form, etc). Click the URL to apply manually, then download a resume for that role.
+            </p>
+            {manualLoading ? <p>Loading...</p> : (
+              manualJobs.length === 0 ? <p style={{color:"#888"}}>No jobs need manual apply right now.</p> : (
+                <table className="records-table">
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>Title</th>
+                      <th>Location</th>
+                      <th>Role</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualJobs.map(j => (
+                      <tr key={j.id}>
+                        <td>{j.company_name}</td>
+                        <td>{j.title}</td>
+                        <td>{j.location || "Remote"}</td>
+                        <td><span className="chip">{(j.role_key || "").replace(/_/g, " ")}</span></td>
+                        <td>
+                          <div className="actions" style={{margin:0,gap:6}}>
+                            {j.url && <a href={j.url} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm">Apply</a>}
+                            {j.role_key && <button className="btn-secondary btn-sm" onClick={() => window.open(`${API}/resume/${j.role_key}/pdf`, "_blank")}>Resume</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            )}
+          </div>
+
+          <div className="card">
+            <h2>Career Auto-Apply History</h2>
+            <p className="subtitle">Results from automated career page applications.</p>
+            {careerApps.length === 0 ? <p style={{color:"#888"}}>No career applications yet.</p> : (
+              <table className="records-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Title</th>
+                    <th>ATS</th>
+                    <th>Status</th>
+                    <th>Fields</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {careerApps.map(a => (
+                    <tr key={a.id}>
+                      <td>{a.company_name}</td>
+                      <td>
+                        {a.job_url ? <a href={a.job_url} target="_blank" rel="noopener noreferrer">{a.job_title || "View"}</a> : a.job_title}
+                      </td>
+                      <td><span className="chip">{a.ats_type}</span></td>
+                      <td>
+                        <span className={
+                          a.status === "applied" ? "status-sent" :
+                          a.status === "submitted_unconfirmed" ? "status-sent" :
+                          a.status === "captcha_blocked" ? "status-warning" :
+                          "status-failed"
+                        }>
+                          {a.status}
+                        </span>
+                      </td>
+                      <td>{a.fields_filled}</td>
+                      <td>{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+
       {tab === "resume" && (
         <>
           {/* ── Download Pre-Generated Resume ────────────────────────── */}
@@ -1022,6 +1136,9 @@ export default function Home() {
               </button>
               <button className="btn-secondary" onClick={() => window.open(`${API}/resume/${previewRole}/latex`, "_blank")} disabled={!previewRole}>
                 Download LaTeX
+              </button>
+              <button className="btn-send-all" onClick={() => window.open(`${API}/resumes/download-all`, "_blank")}>
+                Download All (ZIP)
               </button>
             </div>
 

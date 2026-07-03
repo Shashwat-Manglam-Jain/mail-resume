@@ -40,7 +40,8 @@ from email.message import EmailMessage
 from database import Base, SessionLocal, engine, NeonSessionLocal
 from models import Record
 from neon_models import (Company as NeonCompany, Job as NeonJob,
-                         Contact as NeonContact, SentCompany, Application)
+                         Contact as NeonContact, SentCompany, Application,
+                         CareerApplication)
 from email_checker import validate_email_full
 from resume_templates import (
     get_template,
@@ -985,6 +986,34 @@ def update_record_cc(record_id: int, data: UpdateCCRequest, db: Session = Depend
     return {"id": record.id, "cc_emails": record.cc_emails}
 
 
+@app.get("/resumes/download-all")
+def download_all_resumes():
+    """Download all generated resumes as a single ZIP file."""
+    import zipfile
+
+    profile = _get_profile()
+    name_slug = (profile.get("name") or "Resume").replace(" ", "_")
+
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for template in ROLE_TEMPLATES:
+            key = template["key"]
+            try:
+                pdf_bytes = _get_cached_resume(key)
+                role_slug = template["title"].replace(" ", "_")
+                filename = f"{name_slug}_{role_slug}_Resume.pdf"
+                zf.writestr(filename, pdf_bytes)
+            except Exception:
+                pass
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name_slug}_All_Resumes.zip"'},
+    )
+
+
 @app.post("/resumes/generate")
 def regenerate_resumes():
     load_dotenv(override=True)
@@ -1328,6 +1357,68 @@ def list_sent_companies(
                 "sent_at": r.sent_at.isoformat() if r.sent_at else None,
                 "sent_via": r.sent_via,
                 "month_key": r.month_key,
+            }
+            for r in rows
+        ],
+    }
+
+
+@app.get("/manual-apply-jobs")
+def list_manual_apply_jobs(
+    limit: int = 200,
+    offset: int = 0,
+    ndb: Session = Depends(_get_neon_db),
+):
+    q = (
+        ndb.query(NeonJob)
+        .join(NeonCompany)
+        .filter(NeonJob.needs_manual_apply == True)
+        .order_by(NeonJob.scraped_at.desc())
+    )
+    total = q.count()
+    jobs = q.offset(offset).limit(limit).all()
+
+    results = []
+    for job in jobs:
+        results.append({
+            "id": job.id,
+            "company_name": job.company.name if job.company else "",
+            "company_url": job.company.url if job.company else "",
+            "title": job.title,
+            "url": job.url,
+            "location": job.location,
+            "role_key": job.role_key,
+        })
+
+    return {"total": total, "jobs": results}
+
+
+@app.get("/career-applications")
+def list_career_applications(
+    status: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+    ndb: Session = Depends(_get_neon_db),
+):
+    q = ndb.query(CareerApplication).order_by(CareerApplication.applied_at.desc())
+    if status:
+        q = q.filter(CareerApplication.status == status)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "applications": [
+            {
+                "id": r.id,
+                "company_name": r.company_name,
+                "job_title": r.job_title,
+                "job_url": r.job_url,
+                "ats_type": r.ats_type,
+                "status": r.status,
+                "fields_filled": r.fields_filled,
+                "error": r.error,
+                "applied_at": r.applied_at.isoformat() if r.applied_at else None,
             }
             for r in rows
         ],

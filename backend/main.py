@@ -1495,3 +1495,28 @@ def clear_monthly_scraped_data(ndb: Session = Depends(_get_neon_db)):
     return {
         "detail": f"Cleared {companies_del} companies, {jobs_del} jobs, {contacts_del} contacts, {apps_del} applications. Sent history preserved.",
     }
+
+
+@app.delete("/history")
+def clear_history(ndb: Session = Depends(_get_neon_db)):
+    """Clear all application history (sent_companies table)."""
+    deleted = ndb.query(SentCompany).delete()
+    ndb.commit()
+    return {"detail": f"Cleared {deleted} history entries."}
+
+
+@app.delete("/clear-all")
+def clear_all_data(ndb: Session = Depends(_get_neon_db), db: Session = Depends(_get_db)):
+    """Clear everything: scraped jobs + history + email queue."""
+    ca_del = ndb.query(CareerApplication).delete()
+    apps_del = ndb.query(Application).delete()
+    contacts_del = ndb.query(NeonContact).delete()
+    jobs_del = ndb.query(NeonJob).delete()
+    companies_del = ndb.query(NeonCompany).delete()
+    sent_del = ndb.query(SentCompany).delete()
+    ndb.commit()
+    queue_del = db.query(Record).delete()
+    db.commit()
+    return {
+        "detail": f"Cleared {companies_del} companies, {jobs_del} jobs, {sent_del} history entries, {queue_del} queued records.",
+    }

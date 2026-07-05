@@ -1093,6 +1093,112 @@ textarea::placeholder { color: #94a3b8; }
   white-space: nowrap;
 }
 
+/* ── Job Tracker — new UI components ───────────────────────────────────── */
+
+/* Filter bar above the jobs table */
+.filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filter-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 0;
+  min-width: 130px;
+}
+
+/* Red outlined danger button */
+.btn-danger-outline {
+  background: white;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.btn-danger-outline:hover:not(:disabled) { background: #fef2f2; }
+.btn-danger-outline.btn-sm { padding: 6px 14px; font-size: 12px; }
+
+/* Apply button — green, per-row */
+.btn-apply {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+  padding: 5px 13px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-apply:hover:not(:disabled) { background: #d1fae5; border-color: #34d399; }
+.btn-apply:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Table cell helpers */
+.td-num { color: #94a3b8; font-size: 12px; text-align: right; padding-right: 12px; }
+.td-company { font-weight: 600; color: #0f172a; }
+.td-muted { color: #64748b; font-size: 13px; }
+
+/* Clickable job title link */
+.job-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 13px;
+}
+.job-link:hover { text-decoration: underline; }
+
+/* Pagination controls */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.page-info {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Empty / loading state messages */
+.state-msg {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94a3b8;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* History tab header row */
+.history-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {

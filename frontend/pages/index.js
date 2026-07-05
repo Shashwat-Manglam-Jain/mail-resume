@@ -51,6 +51,7 @@ export default function Home() {
   const [careerApps, setCareerApps] = useState([]);
   const [careerTotal, setCareerTotal] = useState(0);
   const [manualLoading, setManualLoading] = useState(false);
+  const [careerFilter, setCareerFilter] = useState("all");
 
   useEffect(() => {
     fetchProfile();
@@ -354,7 +355,7 @@ export default function Home() {
         setStatus("Contact added.");
         setAddEmailJobId(null);
         setAddEmailForm({ email: "", name: "", title: "" });
-        fetchScrapedJobs(sjPage);
+        await fetchScrapedJobs(sjPage);
       } else {
         const err = await res.json().catch(() => ({}));
         setStatus(err.detail || "Failed to add contact.");
@@ -390,6 +391,21 @@ export default function Home() {
     if (tab === "scraped") { fetchScrapedJobs(sjPage); fetchScrapedSources(); fetchSentCompanies(); }
     if (tab === "manual") { fetchManualJobs(); fetchCareerApps(); }
   }, [tab, sjPage]);
+
+  async function markApplied(jobId, companyName) {
+    try {
+      const res = await fetch(`${API}/jobs/${jobId}/mark-applied`, { method: "POST" });
+      if (res.ok) {
+        setStatus(`Marked ${companyName} as applied.`);
+        await fetchSentCompanies();
+        if (tab === "scraped") await fetchScrapedJobs(sjPage);
+        if (tab === "manual") await fetchManualJobs();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setStatus(err.detail || "Failed to mark as applied.");
+      }
+    } catch (err) { setStatus(`Error: ${err.message}`); }
+  }
 
   async function fetchManualJobs() {
     setManualLoading(true);
@@ -954,6 +970,10 @@ export default function Home() {
                               Add Email
                             </button>
                           )}
+                          <button className="btn-applied btn-xs"
+                            onClick={() => markApplied(job.id, job.company_name)}>
+                            Applied
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1025,7 +1045,7 @@ export default function Home() {
             </p>
             {manualLoading ? <p>Loading...</p> : (
               manualJobs.length === 0 ? <p style={{color:"#888"}}>No jobs need manual apply right now.</p> : (
-                <table className="records-table">
+                <div className="table-wrap"><table>
                   <thead>
                     <tr>
                       <th>Company</th>
@@ -1046,56 +1066,114 @@ export default function Home() {
                           <div className="actions" style={{margin:0,gap:6}}>
                             {j.url && <a href={j.url} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm">Apply</a>}
                             {j.role_key && <button className="btn-secondary btn-sm" onClick={() => window.open(`${API}/resume/${j.role_key}/pdf`, "_blank")}>Resume</button>}
+                            <button className="btn-applied btn-sm" onClick={() => markApplied(j.id, j.company_name)}>Applied</button>
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )
             )}
           </div>
 
           <div className="card">
-            <h2>Career Auto-Apply History</h2>
-            <p className="subtitle">Results from automated career page applications.</p>
-            {careerApps.length === 0 ? <p style={{color:"#888"}}>No career applications yet.</p> : (
-              <table className="records-table">
-                <thead>
-                  <tr>
-                    <th>Company</th>
-                    <th>Title</th>
-                    <th>ATS</th>
-                    <th>Status</th>
-                    <th>Fields</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {careerApps.map(a => (
-                    <tr key={a.id}>
-                      <td>{a.company_name}</td>
-                      <td>
-                        {a.job_url ? <a href={a.job_url} target="_blank" rel="noopener noreferrer">{a.job_title || "View"}</a> : a.job_title}
-                      </td>
-                      <td><span className="chip">{a.ats_type}</span></td>
-                      <td>
-                        <span className={
-                          a.status === "applied" ? "status-sent" :
-                          a.status === "submitted_unconfirmed" ? "status-sent" :
-                          a.status === "captcha_blocked" ? "status-warning" :
-                          "status-failed"
-                        }>
-                          {a.status}
-                        </span>
-                      </td>
-                      <td>{a.fields_filled}</td>
-                      <td>{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="queue-header">
+              <div>
+                <h2>Career Auto-Apply History</h2>
+                <p className="subtitle">Results from automated career page applications.</p>
+              </div>
+              <div className="career-filter-tabs">
+                <button className={careerFilter === "all" ? "career-tab active" : "career-tab"} onClick={() => setCareerFilter("all")}>
+                  All ({careerTotal || careerApps.length})
+                </button>
+                <button className={careerFilter === "success" ? "career-tab active career-tab-success" : "career-tab"} onClick={() => setCareerFilter("success")}>
+                  ✓ Success ({careerApps.filter(a => ["applied","submitted_unconfirmed","manually_applied"].includes(a.status)).length})
+                </button>
+                <button className={careerFilter === "failed" ? "career-tab active career-tab-failed" : "career-tab"} onClick={() => setCareerFilter("failed")}>
+                  ✗ Need Manual ({careerApps.filter(a => !["applied","submitted_unconfirmed","manually_applied"].includes(a.status)).length})
+                </button>
+              </div>
+            </div>
+
+            {careerFilter === "failed" && (
+              <div className="manual-apply-hint">
+                These jobs were blocked or failed during auto-apply. Open the link, apply manually, then click <strong>Mark Applied</strong> to move them to success.
+              </div>
             )}
+
+            {careerApps.length === 0 ? <p style={{color:"#888"}}>No career applications yet.</p> : (() => {
+              const filtered = careerApps.filter(a => {
+                const isSuccess = ["applied","submitted_unconfirmed","manually_applied"].includes(a.status);
+                if (careerFilter === "success") return isSuccess;
+                if (careerFilter === "failed") return !isSuccess;
+                return true;
+              });
+
+              if (filtered.length === 0) return <p style={{color:"#888"}}>No entries for this filter.</p>;
+
+              return (
+                <div className="table-wrap"><table>
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>Title</th>
+                      <th>ATS</th>
+                      <th>Status</th>
+                      <th>Fields</th>
+                      <th>Date</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(a => {
+                      const isSuccess = ["applied","submitted_unconfirmed","manually_applied"].includes(a.status);
+                      const statusLabel =
+                        a.status === "applied" ? "✓ Applied" :
+                        a.status === "submitted_unconfirmed" ? "~ Submitted" :
+                        a.status === "manually_applied" ? "✓ Manual Applied" :
+                        a.status === "captcha_blocked" ? "⚠ CAPTCHA Blocked" :
+                        `✗ ${a.status}`;
+                      const statusClass =
+                        isSuccess ? "status-sent" :
+                        a.status === "captcha_blocked" ? "status-warning" :
+                        "status-failed";
+
+                      return (
+                        <tr key={a.id} className={!isSuccess ? "row-needs-action" : ""}>
+                          <td><strong>{a.company_name}</strong></td>
+                          <td>{a.job_title || "—"}</td>
+                          <td><span className="chip">{a.ats_type}</span></td>
+                          <td><span className={statusClass}>{statusLabel}</span></td>
+                          <td>{a.fields_filled}</td>
+                          <td>{a.applied_at ? new Date(a.applied_at).toLocaleDateString() : ""}</td>
+                          <td className="cell-actions">
+                            {!isSuccess ? (
+                              <>
+                                {a.job_url && (
+                                  <a href={a.job_url} target="_blank" rel="noopener noreferrer" className="btn-primary btn-xs">
+                                    Apply
+                                  </a>
+                                )}
+                                <button className="btn-applied btn-xs" onClick={async () => {
+                                  const res = await fetch(`${API}/career-applications/${a.id}/mark-applied`, { method: "POST" });
+                                  if (res.ok) { setStatus(`Marked ${a.company_name} as applied.`); await fetchCareerApps(); await fetchSentCompanies(); }
+                                  else { const e = await res.json().catch(()=>({})); setStatus(e.detail || "Failed."); }
+                                }}>
+                                  Mark Applied
+                                </button>
+                              </>
+                            ) : (
+                              <span style={{color:"#16a34a",fontSize:12}}>Done</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table></div>
+              );
+            })()}
           </div>
         </>
       )}

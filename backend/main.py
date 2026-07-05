@@ -532,9 +532,8 @@ def _send_single_record(record: Record, db: Session) -> dict:
         }
 
     if record.company_name and NeonSessionLocal:
+        ndb = NeonSessionLocal()
         try:
-            ndb = NeonSessionLocal()
-            from datetime import datetime as _dt
             existing = ndb.query(SentCompany).filter(
                 SentCompany.company_name == record.company_name.lower().strip(),
                 SentCompany.email_used == record.to_email.lower().strip(),
@@ -544,12 +543,13 @@ def _send_single_record(record: Record, db: Session) -> dict:
                     company_name=record.company_name.lower().strip(),
                     email_used=record.to_email.lower().strip(),
                     sent_via=os.getenv("SMTP_USER", ""),
-                    month_key=_dt.now().strftime("%Y-%m"),
+                    month_key=datetime.now().strftime("%Y-%m"),
                 ))
                 ndb.commit()
-            ndb.close()
         except Exception:
             pass
+        finally:
+            ndb.close()
 
     db.delete(record)
     return {
@@ -683,7 +683,6 @@ def generate_custom_resume(req: CustomResumeRequest):
         raise HTTPException(status_code=404, detail="Role not found")
 
     if req.custom_summary or req.custom_skills:
-        from resume_templates import ROLE_TEMPLATES, _ResumePDF
         tmpl = copy.deepcopy(template)
         if req.custom_summary:
             tmpl["summary"] = req.custom_summary
@@ -1138,7 +1137,12 @@ def send_all(db: Session = Depends(_get_db)):
     errors = []
 
     for record in records:
-        result = _send_single_record(record, db)
+        try:
+            result = _send_single_record(record, db)
+        except Exception as exc:
+            failed += 1
+            errors.append({"id": record.id, "status": "failed", "error": str(exc)})
+            continue
         if result["status"] == "sent":
             sent += 1
         else:
@@ -1289,7 +1293,7 @@ def queue_from_scraped_job(
     ndb: Session = Depends(_get_neon_db),
     db: Session = Depends(_get_db),
 ):
-    job = ndb.query(NeonJob).get(job_id)
+    job = ndb.get(NeonJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -1318,7 +1322,7 @@ def add_contact_to_job(
     body: AddContactRequest,
     ndb: Session = Depends(_get_neon_db),
 ):
-    job = ndb.query(NeonJob).get(job_id)
+    job = ndb.get(NeonJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -1363,16 +1367,46 @@ def list_sent_companies(
     }
 
 
+@app.post("/jobs/{job_id}/mark-applied")
+def mark_job_applied(job_id: int, ndb: Session = Depends(_get_neon_db)):
+    """Mark a job as manually applied — saves to sent history and hides from queues."""
+    job = ndb.get(NeonJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    company_name = job.company.name if job.company else ""
+    if not company_name:
+        raise HTTPException(status_code=400, detail="Job has no associated company")
+
+    existing = ndb.query(SentCompany).filter(
+        SentCompany.company_name == company_name.lower().strip(),
+    ).first()
+
+    if not existing:
+        ndb.add(SentCompany(
+            company_name=company_name.lower().strip(),
+            email_used="manual",
+            sent_via="manual_apply",
+            month_key=datetime.now().strftime("%Y-%m"),
+        ))
+        ndb.commit()
+
+    return {"detail": f"Marked {company_name} as applied"}
+
+
 @app.get("/manual-apply-jobs")
 def list_manual_apply_jobs(
     limit: int = 200,
     offset: int = 0,
     ndb: Session = Depends(_get_neon_db),
 ):
+    from sqlalchemy import func as sa_func
+    sent_sub = ndb.query(SentCompany.company_name).distinct()
     q = (
         ndb.query(NeonJob)
         .join(NeonCompany)
         .filter(NeonJob.needs_manual_apply == True)
+        .filter(~sa_func.lower(sa_func.trim(NeonCompany.name)).in_(sent_sub))
         .order_by(NeonJob.scraped_at.desc())
     )
     total = q.count()
@@ -1391,6 +1425,32 @@ def list_manual_apply_jobs(
         })
 
     return {"total": total, "jobs": results}
+
+
+@app.post("/career-applications/{app_id}/mark-applied")
+def mark_career_app_applied(app_id: int, ndb: Session = Depends(_get_neon_db)):
+    """Mark a failed/captcha-blocked career application as manually applied."""
+    app_row = ndb.query(CareerApplication).filter(CareerApplication.id == app_id).first()
+    if not app_row:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    app_row.status = "manually_applied"
+
+    company_name = (app_row.company_name or "").lower().strip()
+    if company_name:
+        existing = ndb.query(SentCompany).filter(
+            SentCompany.company_name == company_name,
+        ).first()
+        if not existing:
+            ndb.add(SentCompany(
+                company_name=company_name,
+                email_used="manual",
+                sent_via="manual_apply",
+                month_key=datetime.now().strftime("%Y-%m"),
+            ))
+
+    ndb.commit()
+    return {"detail": f"Marked {app_row.company_name} as manually applied"}
 
 
 @app.get("/career-applications")

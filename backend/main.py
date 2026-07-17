@@ -25,6 +25,7 @@ import os
 import ssl
 import smtplib
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
@@ -480,7 +481,7 @@ def _send_email(to_email: str, subject: str, body: str,
     )
 
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(host, port, context=context) as server:
+    with smtplib.SMTP_SSL(host, port, context=context, timeout=30) as server:
         server.login(user, password)
         all_recipients = [to_email] + (cc_emails or [])
         server.send_message(msg, to_addrs=all_recipients)
@@ -490,7 +491,9 @@ def _send_single_record(record: Record, db: Session) -> dict:
     profile = _get_profile()
     from_email = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
 
-    to_result = validate_email_full(record.to_email, from_email)
+    # skip_smtp=True: full SMTP probe was already done when the record was queued;
+    # re-probing at send time causes 30-60 s hangs per email and triggers 502s.
+    to_result = validate_email_full(record.to_email, from_email, skip_smtp=True)
     if not to_result["valid"]:
         return {
             "id": record.id,
@@ -1132,25 +1135,94 @@ def send_all(db: Session = Depends(_get_db)):
             detail="No records in the queue to send.",
         )
 
+    from_email = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
+    profile = _get_profile()
+
+    def _send_one(record: Record) -> dict:
+        """Pure send — validates and sends the email. No DB writes; caller commits."""
+        to_result = validate_email_full(record.to_email, from_email, skip_smtp=True)
+        if not to_result["valid"]:
+            return {
+                "id": record.id, "status": "failed",
+                "error": f"TO validation failed: {to_result['reason']}",
+            }
+
+        cc_list = _parse_cc_emails(record.cc_emails)
+        valid_cc, skipped_cc = _validate_and_filter_cc(cc_list, from_email)
+
+        subject, body = _compose_message(
+            record.message_type, record.hr_name, record.company_name,
+            record.role_key, record.custom_subject, record.custom_body,
+        )
+
+        try:
+            pdf_bytes = _get_cached_resume(record.role_key)
+        except Exception:
+            pdf_bytes = _get_cached_resume("ai_ml_engineer")
+
+        name_slug = (profile.get("name") or "Resume").replace(" ", "_")
+        role_slug = _get_role_title(record.role_key).replace(" ", "_")
+        pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
+
+        try:
+            _send_email(record.to_email, subject, body, pdf_bytes, pdf_filename,
+                        cc_emails=valid_cc)
+        except Exception as exc:
+            return {
+                "id": record.id, "status": "failed",
+                "error": str(exc), "skipped_cc": skipped_cc,
+            }
+
+        return {
+            "id": record.id, "status": "sent",
+            "cc_sent": valid_cc, "skipped_cc": skipped_cc,
+        }
+
+    # ── Send in parallel (SMTP I/O only — no DB writes in threads) ──────────
+    send_results: list[dict] = []
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(_send_one, r) for r in records]
+        for future in as_completed(futures):
+            try:
+                send_results.append(future.result())
+            except Exception as exc:
+                send_results.append({"id": None, "status": "failed", "error": str(exc)})
+
+    # ── Commit deletions serially in the main thread (avoids SQLite lock contention) ─
     sent = 0
     failed = 0
     errors = []
 
-    for record in records:
-        try:
-            result = _send_single_record(record, db)
-        except Exception as exc:
-            failed += 1
-            errors.append({"id": record.id, "status": "failed", "error": str(exc)})
-            continue
+    for result in send_results:
         if result["status"] == "sent":
+            record = db.query(Record).filter(Record.id == result["id"]).first()
+            if record:
+                db.delete(record)
+                if record.company_name and NeonSessionLocal:
+                    ndb = NeonSessionLocal()
+                    try:
+                        existing = ndb.query(SentCompany).filter(
+                            SentCompany.company_name == record.company_name.lower().strip(),
+                            SentCompany.email_used == record.to_email.lower().strip(),
+                        ).first()
+                        if not existing:
+                            ndb.add(SentCompany(
+                                company_name=record.company_name.lower().strip(),
+                                email_used=record.to_email.lower().strip(),
+                                sent_via=os.getenv("SMTP_USER", ""),
+                                month_key=datetime.now().strftime("%Y-%m"),
+                            ))
+                            ndb.commit()
+                    except Exception:
+                        pass
+                    finally:
+                        ndb.close()
             sent += 1
         else:
             failed += 1
             errors.append(result)
 
     db.commit()
-
     return SendResult(sent=sent, failed=failed, errors=errors)
 
 

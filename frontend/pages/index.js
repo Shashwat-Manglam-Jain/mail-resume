@@ -181,9 +181,11 @@ export default function Home() {
       const result = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(result.detail || "Send failed.");
       showFlash(result.failed > 0 ? `Failed: ${result.errors?.[0]?.error || "Unknown"}` : "Email sent!", result.failed > 0);
-      fetchRecords();
     } catch (err) { showFlash(err.message, true); }
-    finally { setSending(s => ({ ...s, [id]: false })); }
+    finally {
+      setSending(s => ({ ...s, [id]: false }));
+      fetchRecords(); // always sync — server may have deleted the record even on timeout
+    }
   }
 
   async function sendAll() {
@@ -194,9 +196,11 @@ export default function Home() {
       const result = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(result.detail || "Send failed.");
       showFlash(`Done! Sent: ${result.sent}${result.failed > 0 ? `, Failed: ${result.failed}` : ""}`);
-      fetchRecords();
     } catch (err) { showFlash(err.message, true); }
-    finally { setQueueLoading(false); }
+    finally {
+      setQueueLoading(false);
+      fetchRecords(); // always sync — server may have sent and deleted records even on 502
+    }
   }
 
   async function deleteRecord(id) {

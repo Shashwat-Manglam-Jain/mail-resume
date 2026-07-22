@@ -54,7 +54,7 @@ ROLE_TEMPLATES = [
     _role(
         "ai_ml_engineer",
         "AI/ML Engineer",
-        "Results-driven AI/ML Engineer with 3+ years of experience building "
+        "Results-driven AI/ML Engineer with 4+ years of experience building "
         "production-grade machine learning systems, LLM-powered applications, "
         "RAG pipelines, and cloud-deployed inference APIs. Proven track record "
         "of reducing operational costs by 35% and improving model accuracy "
@@ -84,38 +84,43 @@ ROLE_TEMPLATES = [
         },
         [
             {
-                "name": "LLM-Powered Document Intelligence Platform",
-                "stack": "LangChain, RAG, FAISS, FastAPI, React",
+                "name": "AI SaaS Platform -- LLM Chat & RAG Document Intelligence",
+                "stack": "FastAPI, LangChain, OpenAI GPT-4, ChromaDB, Next.js 14, PostgreSQL, Stripe, AWS, Docker",
                 "bullets": [
-                    "Architected a retrieval-augmented generation system serving "
-                    "10K+ daily queries over 50K internal documents with citation "
-                    "tracking, confidence scoring, and role-based access control.",
-                    "Engineered hybrid chunking strategies with metadata filters "
-                    "and cross-encoder re-ranking, achieving 92% answer relevance "
-                    "and reducing support ticket volume by 35%.",
+                    "Built multi-tenant SaaS platform where businesses upload "
+                    "documents and query them via a streaming AI chatbot -- RAG "
+                    "pipeline using ChromaDB for vector search and GPT-4 for "
+                    "context-aware answers with <2s response time.",
+                    "Implemented Stripe subscription tiers, RBAC, usage metering, "
+                    "and real-time token streaming -- onboarded 500+ paying users "
+                    "at 98% satisfaction rate with zero infrastructure incidents "
+                    "in 3 months of production.",
                 ],
             },
             {
-                "name": "Production ML Pipeline -- Customer Churn Prediction",
-                "stack": "PyTorch, Scikit-learn, MLflow, Docker, AWS",
+                "name": "Real-Time Collaborative Developer Platform",
+                "stack": "Node.js, React, WebSockets, Redis Pub/Sub, PostgreSQL, Docker, GitHub Actions",
                 "bullets": [
-                    "Designed end-to-end pipeline covering feature engineering, "
-                    "model training, hyperparameter tuning, and automated "
-                    "deployment achieving 0.91 F1 score across 2M+ customer records.",
-                    "Reduced monthly churn by 18% ($240K annual savings) through "
-                    "SHAP-based explainability reports consumed by retention teams.",
+                    "Engineered browser-based collaborative environment with "
+                    "real-time code sync, live cursors, and session management "
+                    "using WebSockets + Redis pub/sub -- supporting 2,000+ "
+                    "concurrent users at sub-50ms latency.",
+                    "Implemented project versioning, diff tracking, and team "
+                    "permission system backed by PostgreSQL -- 88% automated "
+                    "test coverage with GitHub Actions CI running on every PR.",
                 ],
             },
             {
-                "name": "Real-Time Object Detection API",
-                "stack": "YOLOv8, FastAPI, Redis, Docker, Prometheus",
+                "name": "Multi-Vendor E-Commerce SaaS Marketplace",
+                "stack": "Django, Next.js, PostgreSQL, Celery, Redis, AWS S3, Stripe, Docker",
                 "bullets": [
-                    "Deployed low-latency (<50ms) inference API for manufacturing "
-                    "defect detection, processing 500+ images/min with 97.3% "
-                    "accuracy, reducing manual inspection costs by 60%.",
-                    "Implemented model versioning, canary deployments, and "
-                    "Prometheus monitoring for drift detection, achieving 99.5% "
-                    "uptime in production.",
+                    "Delivered full multi-vendor marketplace -- product catalog, "
+                    "order management, vendor dashboard, Stripe payment processing, "
+                    "and admin moderation -- serving 5,000+ daily active users.",
+                    "Optimized PostgreSQL with selective indexing and prefetch "
+                    "strategies, reducing average API response time by 60% and "
+                    "database CPU by 40%; Celery handled async order processing "
+                    "at 99.8% success rate.",
                 ],
             },
         ],
@@ -148,11 +153,7 @@ ROLE_TEMPLATES = [
             "Python ML stack", "LLM/RAG systems", "model evaluation",
             "deployment APIs", "MLOps", "business metric impact",
         ],
-        [
-            "AWS Machine Learning Specialty",
-            "Deep Learning Specialization -- Andrew Ng (Coursera)",
-            "LangChain for LLM Application Development",
-        ],
+        [],
         [
             "Delivered 5 end-to-end AI projects from ideation to production "
             "deployment serving 50K+ users.",
@@ -168,7 +169,7 @@ ROLE_TEMPLATES = [
     _role(
         "data_engineer",
         "Data Engineer",
-        "Data Engineer with 3+ years of experience designing scalable "
+        "Data Engineer with 4+ years of experience designing scalable "
         "ETL/ELT pipelines, lakehouse architectures, real-time streaming "
         "systems, and data quality frameworks. Expertise in processing 5M+ "
         "events/day and delivering analytics-ready datasets that drive "
@@ -196,39 +197,42 @@ ROLE_TEMPLATES = [
         },
         [
             {
-                "name": "Real-Time Data Lakehouse Platform",
-                "stack": "Spark, Kafka, Delta Lake, Airflow, AWS S3",
+                "name": "AI SaaS Platform -- Data Pipeline & Vector Indexing",
+                "stack": "FastAPI, ChromaDB, PostgreSQL, AWS S3, Docker, LangChain",
                 "bullets": [
-                    "Architected a streaming-plus-batch lakehouse ingesting "
-                    "5M+ events/day from CRM, payments, and product telemetry "
-                    "into curated dimensional marts serving 200+ analysts.",
-                    "Implemented schema evolution, data quality gates using "
-                    "Great Expectations, and SLA alerting that reduced "
-                    "dashboard data issues by 75%.",
+                    "Built ingestion and vector indexing pipeline for 50,000+ "
+                    "documents with chunking, embedding, and metadata indexing "
+                    "into ChromaDB -- serving 500+ users with <2s query latency "
+                    "and zero data loss across 3 months of production.",
+                    "Implemented automated data validation, versioning, and "
+                    "monitoring pipeline processing 10,000+ daily document "
+                    "updates with drift detection and SLA alerting.",
                 ],
             },
             {
-                "name": "Cloud Data Warehouse Migration",
-                "stack": "dbt, Snowflake, Terraform, GitHub Actions",
+                "name": "Multi-Vendor E-Commerce Data Platform",
+                "stack": "Django, PostgreSQL, Celery, Redis, AWS S3, Docker",
                 "bullets": [
-                    "Migrated 200+ legacy SQL scripts to dbt models with "
-                    "staging, intermediate, and mart layers, achieving full "
-                    "lineage documentation and 99.9% data accuracy.",
-                    "Automated CI/CD with model tests, freshness checks, "
-                    "and incremental builds cutting warehouse costs by 40% "
-                    "($180K annual savings).",
+                    "Engineered data infrastructure for 5,000+ daily active "
+                    "user marketplace -- optimized PostgreSQL with selective "
+                    "indexing and prefetch strategies reducing query times by "
+                    "60% and database CPU by 40%.",
+                    "Built Celery-powered async processing pipeline at 99.8% "
+                    "success rate handling order, payment, and notification "
+                    "workflows at scale.",
                 ],
             },
             {
-                "name": "Event-Driven ETL Pipeline",
-                "stack": "Kafka, Python, PostgreSQL, Docker",
+                "name": "DevOps Automation & Observability Suite",
+                "stack": "Python, Docker, AWS, GitHub Actions, Nginx, Grafana, Bash",
                 "bullets": [
-                    "Built streaming ingestion for order and payment events "
-                    "with retry handling, dead-letter queues, and real-time "
-                    "monitoring dashboards across 15+ source systems.",
-                    "Reduced manual reporting effort by 60% by delivering "
-                    "near-real-time sales KPIs to BI consumers, enabling "
-                    "same-day decision-making.",
+                    "Built internal toolkit automating deployment health checks, "
+                    "log aggregation, and Grafana dashboards monitoring 10+ "
+                    "microservices -- reduced manual ops effort by 50% and "
+                    "MTTR by 35%.",
+                    "Wrote infrastructure runbooks enabling 5 new engineers to "
+                    "self-serve incident response and deploy independently "
+                    "within their first week.",
                 ],
             },
         ],
@@ -259,11 +263,7 @@ ROLE_TEMPLATES = [
             "SQL depth", "Spark/Kafka", "Airflow orchestration",
             "warehouse modeling", "data quality", "dbt",
         ],
-        [
-            "Databricks Lakehouse Fundamentals",
-            "dbt Analytics Engineering Certification",
-            "AWS Data Analytics Specialty",
-        ],
+        [],
         [
             "Built reusable SQL models and data quality checks adopted "
             "by 3 engineering teams.",
@@ -281,7 +281,7 @@ ROLE_TEMPLATES = [
     _role(
         "data_scientist",
         "Data Scientist",
-        "Data Scientist with 3+ years of experience in statistical modeling, "
+        "Data Scientist with 4+ years of experience in statistical modeling, "
         "predictive analytics, A/B experimentation, and translating complex "
         "datasets into actionable business recommendations. Delivered $500K+ "
         "measurable ROI through customer segmentation, demand forecasting, "
@@ -314,39 +314,41 @@ ROLE_TEMPLATES = [
         },
         [
             {
-                "name": "Customer Lifetime Value Prediction Engine",
-                "stack": "XGBoost, SHAP, Streamlit, PostgreSQL",
+                "name": "AI SaaS Platform -- LLM Analytics & Intelligent Search",
+                "stack": "FastAPI, LangChain, OpenAI GPT-4, ChromaDB, PostgreSQL, AWS",
                 "bullets": [
-                    "Built a CLV prediction model segmenting 500K+ customers "
-                    "into value tiers with 0.88 AUC, enabling targeted "
-                    "retention campaigns that increased retention by 22%.",
-                    "Created an interactive Streamlit dashboard with SHAP "
-                    "explanations consumed by C-suite and marketing leadership "
-                    "for quarterly planning.",
+                    "Designed RAG pipeline with semantic search, response quality "
+                    "scoring, and user interaction analytics -- achieving <2s "
+                    "response time and 98% user satisfaction across 500+ paying "
+                    "users.",
+                    "Implemented usage metering, prompt A/B testing, and "
+                    "conversion analytics that informed product decisions driving "
+                    "3-month growth milestones with zero infrastructure incidents.",
                 ],
             },
             {
-                "name": "A/B Testing Analytics Platform",
-                "stack": "Python, Statsmodels, SQL, Power BI",
+                "name": "Multi-Vendor E-Commerce Analytics Engine",
+                "stack": "Django, PostgreSQL, Celery, Redis, Python",
                 "bullets": [
-                    "Designed enterprise experimentation framework with "
-                    "sample-size calculators, sequential testing, and guardrail "
-                    "metrics, standardizing A/B testing across 3 product teams.",
-                    "Delivered lift analysis dashboards showing confidence "
-                    "intervals, segment effects, and revenue impact projections "
-                    "driving $200K+ incremental revenue.",
+                    "Analyzed product, order, and user behavior data across "
+                    "5,000+ daily active users -- built reporting views and KPI "
+                    "dashboards consumed by vendor and admin stakeholders.",
+                    "Identified query bottlenecks and optimized PostgreSQL "
+                    "indexes, reducing average API response time by 60% and "
+                    "enabling real-time analytics dashboards.",
                 ],
             },
             {
-                "name": "Demand Forecasting System",
-                "stack": "Prophet, LightGBM, Pandas, Airflow",
+                "name": "Professional Networking & Hiring Platform -- Data Insights",
+                "stack": "Next.js 14, TypeScript, PostgreSQL, Prisma, CI/CD",
                 "bullets": [
-                    "Forecasted weekly product demand across 120 SKUs with "
-                    "seasonality, holiday effects, and promotional overlays "
-                    "using ensemble modeling approach.",
-                    "Improved inventory planning accuracy by 25% over baseline, "
-                    "reducing stockouts by 30% and saving $150K in excess "
-                    "inventory costs annually.",
+                    "Architected multi-role platform (candidates, recruiters, "
+                    "admins) with smart job-match scoring, activity tracking, "
+                    "and admin moderation analytics -- 1,000+ active users at "
+                    "99.5% uptime.",
+                    "Built CI/CD pipeline cutting deployment time by 60%; "
+                    "automated tests with 88%+ coverage reduced post-release "
+                    "defects by 40%.",
                 ],
             },
         ],
@@ -380,11 +382,7 @@ ROLE_TEMPLATES = [
             "experimentation", "model interpretation",
             "dashboard storytelling",
         ],
-        [
-            "Google Advanced Data Analytics Professional Certificate",
-            "Applied Data Science with Python -- University of Michigan",
-            "Statistics for Data Science and Business Analysis",
-        ],
+        [],
         [
             "Delivered 6 end-to-end analysis projects covering data cleaning, "
             "modeling, and production recommendations.",
@@ -401,7 +399,7 @@ ROLE_TEMPLATES = [
     _role(
         "data_analyst_bi",
         "Data Analyst / BI Analyst",
-        "Data Analyst and BI professional with 3+ years of experience in "
+        "Data Analyst and BI professional with 4+ years of experience in "
         "SQL-driven analysis, KPI reporting, dashboard design, and translating "
         "raw data into actionable insights. Built 30+ executive dashboards "
         "used by C-suite leadership, reducing reporting turnaround by 70% "
@@ -429,39 +427,40 @@ ROLE_TEMPLATES = [
         },
         [
             {
-                "name": "Executive Revenue Dashboard",
-                "stack": "Power BI, SQL, DAX, Azure SQL",
+                "name": "Multi-Vendor E-Commerce Analytics Dashboard",
+                "stack": "Django, PostgreSQL, Python, Power BI, SQL",
                 "bullets": [
-                    "Created C-suite leadership dashboard tracking revenue, "
-                    "churn, renewal, pipeline, and region-wise performance "
-                    "used by 50+ stakeholders for weekly business reviews.",
-                    "Built 25+ DAX measures with drill-through views enabling "
-                    "teams to diagnose metric changes in under 2 minutes, "
-                    "reducing escalation time by 40%.",
+                    "Built reporting layer for 5,000+ daily active user "
+                    "marketplace covering order volume, vendor revenue, refund "
+                    "rates, and conversion funnels -- consumed by 20+ "
+                    "stakeholders for weekly business reviews.",
+                    "Identified PostgreSQL query bottlenecks and optimized "
+                    "indexes, reducing average reporting query times by 60% "
+                    "and enabling real-time dashboards.",
                 ],
             },
             {
-                "name": "Sales Funnel Conversion Analysis",
-                "stack": "SQL, Tableau, Excel",
+                "name": "Professional Networking Platform -- KPI Reporting",
+                "stack": "Next.js 14, PostgreSQL, Prisma, TypeScript, SQL",
                 "bullets": [
-                    "Analyzed lead source, stage conversion, sales cycle "
-                    "length, and win-rate trends across 10K+ opportunities "
-                    "using SQL window functions and Tableau visual reports.",
-                    "Recommended lead-quality scoring changes that improved "
-                    "sales follow-up prioritization by 30%, contributing "
-                    "$300K+ in pipeline acceleration.",
+                    "Designed user acquisition, job-match success, recruiter "
+                    "engagement, and retention KPIs for 1,000+ active user "
+                    "platform -- delivered automated stakeholder reports with "
+                    "drill-through views.",
+                    "Automated CI/CD-driven data pipeline tests achieving 88%+ "
+                    "coverage and reducing post-release data incidents by 40%.",
                 ],
             },
             {
-                "name": "Customer Support SLA Reporting System",
-                "stack": "SQL, Power Query, Power BI",
+                "name": "DevOps Observability & Operations Dashboard",
+                "stack": "Python, Grafana, Docker, AWS CloudWatch, Bash",
                 "bullets": [
-                    "Built weekly SLA, backlog, aging, and agent productivity "
-                    "reports with automated refresh reducing manual prep "
-                    "by 4 hours/week across 3 support regions.",
-                    "Standardized ticket-level data transformations and KPI "
-                    "definitions across 3 support teams for consistent "
-                    "executive reporting and performance benchmarking.",
+                    "Built Grafana dashboards monitoring 10+ microservices "
+                    "across deployment health, log aggregation, and SLA metrics "
+                    "-- reduced manual ops effort by 50% and MTTR by 35%.",
+                    "Documented monitoring runbooks and alert definitions "
+                    "enabling 5 new engineers to self-serve incident response "
+                    "within their first week.",
                 ],
             },
         ],
@@ -491,11 +490,7 @@ ROLE_TEMPLATES = [
             "advanced SQL", "Power BI / Tableau", "KPI definitions",
             "business storytelling", "Excel", "dashboard quality",
         ],
-        [
-            "Microsoft Power BI Data Analyst Associate",
-            "Google Data Analytics Professional Certificate",
-            "Advanced SQL for Data Analysis",
-        ],
+        [],
         [
             "Created 30+ dashboards with automated refresh and "
             "stakeholder-ready summaries adopted company-wide.",
@@ -513,7 +508,7 @@ ROLE_TEMPLATES = [
     _role(
         "business_analyst",
         "Business Analyst",
-        "Business Analyst with 3+ years of experience in requirement "
+        "Business Analyst with 4+ years of experience in requirement "
         "gathering, process mapping, user story creation, UAT coordination, "
         "and delivering KPI-backed recommendations. Successfully managed "
         "requirements for 10+ product releases, reducing development rework "
@@ -542,40 +537,42 @@ ROLE_TEMPLATES = [
         },
         [
             {
-                "name": "Loan Origination Workflow Optimization",
-                "stack": "BPMN, Jira, SQL, Power BI",
+                "name": "Multi-Vendor E-Commerce SaaS -- Requirements & UAT",
+                "stack": "Jira, Confluence, SQL, Power BI, Figma",
                 "bullets": [
-                    "Mapped current-state and future-state workflows for "
-                    "application intake, verification, approval, and "
-                    "disbursal, reducing cycle time by 35% and processing "
-                    "2,000+ applications/month.",
-                    "Defined 40+ user stories with detailed acceptance criteria "
-                    "that reduced development rework by 50% and improved "
-                    "sprint velocity by 20%.",
+                    "Documented product catalog, order management, vendor "
+                    "dashboard, payment processing, and admin moderation "
+                    "requirements covering 50+ user stories with detailed "
+                    "acceptance criteria and edge cases.",
+                    "Coordinated UAT across 3 teams for 5,000+ daily active "
+                    "user platform -- tracked defects through closure achieving "
+                    "zero critical bugs at production release.",
                 ],
             },
             {
-                "name": "Customer Support Process Analytics",
-                "stack": "SQL, Excel, Power BI, Jira",
+                "name": "Professional Networking & Hiring Platform -- Product Analysis",
+                "stack": "Jira, Figma, Miro, SQL, Confluence",
                 "bullets": [
-                    "Analyzed 50K+ tickets across ticket aging, escalation "
-                    "reasons, and SLA breaches to identify process bottlenecks "
-                    "across 3 support regions.",
-                    "Built KPI dashboards and recommended queue-routing "
-                    "changes that improved first-response time by 25% and "
-                    "customer satisfaction score by 15 points.",
+                    "Gathered and structured requirements for multi-role "
+                    "platform (candidates, recruiters, admins) with OAuth, "
+                    "smart job search, saved listings, and admin moderation "
+                    "for 1,000+ active users.",
+                    "Defined sprint-by-sprint delivery plan; CI/CD pipeline "
+                    "cut deployment time by 60% and automated tests reduced "
+                    "post-release defects by 40%.",
                 ],
             },
             {
-                "name": "E-commerce Checkout Requirement Pack",
-                "stack": "Figma, Jira, Confluence, Miro",
+                "name": "AI SaaS Platform -- Business Requirements & Go-to-Market",
+                "stack": "Jira, Confluence, SQL, Figma, Stripe",
                 "bullets": [
-                    "Documented checkout, payment, coupon, refund, and "
-                    "order-status requirements covering 60+ edge cases "
-                    "across web and mobile platforms.",
-                    "Coordinated UAT across 3 teams (15 testers) and tracked "
-                    "120+ defects through closure, achieving zero critical "
-                    "bugs at production release.",
+                    "Documented subscription tier logic, RBAC, usage metering, "
+                    "and onboarding requirements for multi-tenant SaaS -- "
+                    "enabling 500+ paying user onboarding at 98% satisfaction "
+                    "rate.",
+                    "Mapped Stripe payment integration workflows, refund edge "
+                    "cases, and compliance requirements, achieving zero critical "
+                    "billing incidents in 3 months of production.",
                 ],
             },
         ],
@@ -607,11 +604,7 @@ ROLE_TEMPLATES = [
             "BRD/FRD", "user stories", "UAT coordination",
             "SQL reporting", "process mapping", "communication",
         ],
-        [
-            "IIBA Entry Certificate in Business Analysis (ECBA)",
-            "Agile Business Analysis -- ICAgile",
-            "Microsoft Power BI for Business Users",
-        ],
+        [],
         [
             "Created complete requirement packs for 10+ releases with "
             "workflow diagrams and 500+ test scenarios.",
@@ -629,7 +622,7 @@ ROLE_TEMPLATES = [
     _role(
         "software_engineer",
         "Software Engineer",
-        "Software Engineer with 3+ years of experience designing and building "
+        "Software Engineer with 4+ years of experience designing and building "
         "scalable web applications, RESTful APIs, and microservices using "
         "Python (FastAPI, Django) and Node.js (Express). Proven ability to "
         "deliver high-performance backend systems handling 10K+ RPM, implement "
@@ -661,39 +654,42 @@ ROLE_TEMPLATES = [
         },
         [
             {
-                "name": "Real-Time Collaboration API Platform",
-                "stack": "FastAPI, PostgreSQL, Redis, WebSockets, Docker",
+                "name": "AI SaaS Platform -- LLM Chat & RAG Document Intelligence",
+                "stack": "FastAPI, LangChain, OpenAI GPT-4, ChromaDB, Next.js 14, PostgreSQL, Stripe, AWS, Docker",
                 "bullets": [
-                    "Architected a high-throughput FastAPI backend with WebSocket "
-                    "support for real-time collaboration features, handling 10K+ "
-                    "concurrent connections with sub-100ms latency and 99.5% uptime.",
-                    "Designed async task processing with Celery and Redis, "
-                    "implementing rate limiting, request validation, and structured "
-                    "logging that reduced API error rates by 45%.",
+                    "Built multi-tenant SaaS platform where businesses upload "
+                    "documents and query them via a streaming AI chatbot -- RAG "
+                    "pipeline using ChromaDB for vector search and GPT-4 for "
+                    "context-aware answers with <2s response time.",
+                    "Implemented Stripe subscription tiers, RBAC, usage metering, "
+                    "and real-time token streaming -- onboarded 500+ paying users "
+                    "at 98% satisfaction rate with zero infrastructure incidents "
+                    "in 3 months of production.",
                 ],
             },
             {
-                "name": "E-Commerce Marketplace Backend",
-                "stack": "Django, Django REST Framework, PostgreSQL, Celery, AWS S3",
+                "name": "Multi-Vendor E-Commerce SaaS Marketplace",
+                "stack": "Django, Next.js, PostgreSQL, Celery, Redis, AWS S3, Stripe, Docker",
                 "bullets": [
-                    "Built a full-featured Django marketplace backend with product "
-                    "catalog, order management, payment integration, and role-based "
-                    "access control serving 5K+ daily active users.",
-                    "Optimized database queries using select_related, prefetch_related, "
-                    "and indexing strategies, reducing average API response time by "
-                    "60% and cutting database load by 40%.",
+                    "Delivered full multi-vendor marketplace -- product catalog, "
+                    "order management, vendor dashboard, Stripe payment processing, "
+                    "and admin moderation -- serving 5,000+ daily active users.",
+                    "Optimized PostgreSQL with selective indexing and prefetch "
+                    "strategies, reducing average API response time by 60% and "
+                    "database CPU by 40%; Celery handled async order processing "
+                    "at 99.8% success rate.",
                 ],
             },
             {
-                "name": "Microservices Notification Engine",
-                "stack": "Node.js, Express, MongoDB, RabbitMQ, Docker",
+                "name": "High-Scale Microservices Notification Engine",
+                "stack": "Node.js, Express, MongoDB, RabbitMQ, Docker, Swagger",
                 "bullets": [
-                    "Developed a Node.js microservice for multi-channel notifications "
-                    "(email, SMS, push) with templating, retry logic, and delivery "
-                    "tracking, processing 50K+ notifications daily.",
-                    "Implemented comprehensive API documentation with Swagger, "
-                    "integration tests with 90%+ coverage, and Docker-based local "
-                    "development environment reducing onboarding time by 50%.",
+                    "Designed multi-channel notification service (email, SMS, push) "
+                    "with template engine, exponential retry logic, and real-time "
+                    "delivery tracking -- processing 50,000+ notifications/day at "
+                    "99.7% delivery rate.",
+                    "90%+ test coverage, full Swagger API docs, and Docker dev "
+                    "environment -- reduced engineer onboarding time by 50%.",
                 ],
             },
         ],
@@ -728,11 +724,7 @@ ROLE_TEMPLATES = [
             "system design", "Docker & deployment",
             "data structures & algorithms", "testing",
         ],
-        [
-            "AWS Certified Cloud Practitioner",
-            "Meta Back-End Developer Professional Certificate",
-            "Node.js, Express, MongoDB -- The Complete Bootcamp",
-        ],
+        [],
         [
             "Delivered 8+ production backend services from design to deployment "
             "serving 50K+ users across FastAPI, Django, and Node.js stacks.",
@@ -883,7 +875,7 @@ def _build_extra_role(key, title, skill_text, project_name, stack,
     return _role(
         key,
         title,
-        f"{title} with 3+ years of hands-on experience building production "
+        f"{title} with 4+ years of hands-on experience building production "
         f"systems, collaborating with cross-functional teams, and delivering "
         f"measurable improvements using modern industry tools and Agile "
         f"methodology.",
@@ -910,27 +902,27 @@ def _build_extra_role(key, title, skill_text, project_name, stack,
                 ],
             },
             {
-                "name": f"{title} Analytics Dashboard",
-                "stack": "SQL, Python, Power BI, REST APIs",
+                "name": "AI SaaS Platform -- LLM Chat & RAG Document Intelligence",
+                "stack": "FastAPI, LangChain, OpenAI GPT-4, ChromaDB, Next.js 14, PostgreSQL, Stripe, AWS, Docker",
                 "bullets": [
-                    "Built real-time KPI tracking dashboard monitoring task "
-                    "progress, quality metrics, delivery timelines, and "
-                    "team productivity across 3 departments.",
-                    "Automated weekly reporting workflows reducing manual "
-                    "data preparation by 8 hours/week and improving "
-                    "stakeholder visibility.",
+                    "Built multi-tenant SaaS with AI chatbot and RAG document "
+                    "search -- onboarded 500+ paying users at 98% satisfaction "
+                    "rate with <2s response time.",
+                    "Implemented Stripe subscriptions, RBAC, and real-time "
+                    "token streaming with zero infrastructure incidents in "
+                    "3 months of production.",
                 ],
             },
             {
-                "name": f"{title} Workflow Automation Suite",
-                "stack": "Python, APIs, Docker, Git, CI/CD",
+                "name": "Multi-Vendor E-Commerce SaaS Marketplace",
+                "stack": "Django, Next.js, PostgreSQL, Celery, Redis, AWS S3, Stripe, Docker",
                 "bullets": [
-                    "Automated repetitive workflows including status updates, "
-                    "data exports, and health checks, reducing manual effort "
-                    "by 50% and improving consistency across teams.",
-                    "Documented architecture decisions, API contracts, and "
-                    "runbooks enabling seamless onboarding for 5+ new "
-                    "team members.",
+                    "Delivered full multi-vendor marketplace serving 5,000+ "
+                    "daily active users -- product catalog, order management, "
+                    "vendor dashboard, and Stripe payment processing.",
+                    "Optimized PostgreSQL reducing API response time by 60%; "
+                    "Celery pipeline handled async processing at 99.8% "
+                    "success rate.",
                 ],
             },
         ],
@@ -959,11 +951,7 @@ def _build_extra_role(key, title, skill_text, project_name, stack,
             },
         ],
         skills[:8],
-        [
-            f"{title} Professional Certificate",
-            "Agile Project Delivery",
-            "Communication and Stakeholder Management",
-        ],
+        [],
         [
             f"Delivered 5+ production projects with documented business "
             f"impact and stakeholder sign-off.",
@@ -1145,7 +1133,7 @@ def generate_pdf_resume(role_key: str, profile: dict) -> bytes:
     company_1_dur = profile.get("company_1_duration") or "Jan 2024 -- Present"
     company_2_name = profile.get("company_2_name") or "Previous Company"
     company_2_loc = profile.get("company_2_location") or ""
-    company_2_dur = profile.get("company_2_duration") or "Jul 2022 -- Dec 2023"
+    company_2_dur = profile.get("company_2_duration") or "Jan 2022 -- Dec 2022"
 
     exp_entries = template["experience"]
 
@@ -1221,12 +1209,6 @@ def generate_pdf_resume(role_key: str, profile: dict) -> bytes:
         new_x="LMARGIN", new_y="NEXT",
     )
     pdf.ln(1)
-
-    # ── Certifications ──────────────────────────────────────────────
-    pdf.section_header("Certifications")
-    for cert in template["certifications"]:
-        pdf.bullet(cert, indent=2)
-    pdf.ln(0.5)
 
     # ── Achievements ────────────────────────────────────────────────
     pdf.section_header("Achievements")
@@ -1318,7 +1300,7 @@ def make_latex_resume(template: dict, basics: dict) -> str:
     c1_dur = _latex_escape(basics.get("company_1_duration") or "Jan 2024 -- Present")
     c2_name = _latex_escape(basics.get("company_2_name") or "Previous Company")
     c2_loc = _latex_escape(basics.get("company_2_location") or "")
-    c2_dur = _latex_escape(basics.get("company_2_duration") or "Jul 2022 -- Dec 2023")
+    c2_dur = _latex_escape(basics.get("company_2_duration") or "Jan 2022 -- Dec 2022")
     prev_title = _latex_escape(
         template.get("previous_title", f"Junior {template['title']}")
     )
@@ -1399,12 +1381,6 @@ def make_latex_resume(template: dict, basics: dict) -> str:
         \begin{{rSection}}{{Education}}
         \textbf{{{education}}} \hfill {grad_year}\\
         Relevant coursework: {coursework_text}
-        \end{{rSection}}
-
-        \begin{{rSection}}{{Certifications}}
-        \begin{{itemize}}
-        {_tex_items(template["certifications"])}
-        \end{{itemize}}
         \end{{rSection}}
 
         \begin{{rSection}}{{Achievements}}

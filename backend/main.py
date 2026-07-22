@@ -447,6 +447,11 @@ def _generate_all_resumes():
 
 
 def _get_cached_resume(role_key: str) -> bytes:
+    custom_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
+    if custom_path:
+        p = Path(custom_path)
+        if p.exists():
+            return p.read_bytes()
     pdf_path = RESUME_DIR / f"{role_key}.pdf"
     if pdf_path.exists():
         return pdf_path.read_bytes()
@@ -520,8 +525,12 @@ def _send_single_record(record: Record, db: Session) -> dict:
         pdf_bytes = _get_cached_resume("ai_ml_engineer")
 
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
-    role_slug = _get_role_title(record.role_key).replace(" ", "_")
-    pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
+    custom_resume_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
+    if custom_resume_path and Path(custom_resume_path).exists():
+        pdf_filename = f"{name_slug}_Resume.pdf"
+    else:
+        role_slug = _get_role_title(record.role_key).replace(" ", "_")
+        pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
 
     try:
         _send_email(record.to_email, subject, body, pdf_bytes, pdf_filename,
@@ -964,11 +973,6 @@ def _generate_from_template(template: dict, profile: dict) -> bytes:
     pdf.cell(w=0, h=4, text=f"Relevant coursework: {cw}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
-    pdf.section_header("Certifications")
-    for cert in template["certifications"]:
-        pdf.bullet(cert, indent=2)
-    pdf.ln(0.5)
-
     pdf.section_header("Achievements")
     for ach in template["achievements"]:
         pdf.bullet(ach, indent=2)
@@ -1161,8 +1165,12 @@ def send_all(db: Session = Depends(_get_db)):
             pdf_bytes = _get_cached_resume("ai_ml_engineer")
 
         name_slug = (profile.get("name") or "Resume").replace(" ", "_")
-        role_slug = _get_role_title(record.role_key).replace(" ", "_")
-        pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
+        custom_resume_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
+        if custom_resume_path and Path(custom_resume_path).exists():
+            pdf_filename = f"{name_slug}_Resume.pdf"
+        else:
+            role_slug = _get_role_title(record.role_key).replace(" ", "_")
+            pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
 
         try:
             _send_email(record.to_email, subject, body, pdf_bytes, pdf_filename,

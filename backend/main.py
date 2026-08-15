@@ -92,23 +92,26 @@ MESSAGE_TEMPLATES = {
 
     "job_apply": {
         "label": "Job Application",
-        "subject": "Application for {role_title} -- {your_name} | Ready for Immediate Joining",
+        "subject": "Application for {role_title} -- {your_name} | {experience_years} Years of Experience",
         "body": (
             "Dear {hr_name},\n\n"
-            "I am writing to apply for the {role_title} position"
-            "{at_company}. I have strong hands-on experience in "
-            "{top_skills}, and I am confident I can deliver results "
-            "from day one.\n\n"
-            "Here is what I bring to your team:\n\n"
-            "  - Proven expertise in {top_skills} with real project outcomes\n"
-            "  - A track record of solving complex problems and delivering on tight deadlines\n"
-            "  - Strong collaboration skills and a passion for building quality solutions\n\n"
-            "I have attached my resume which details my projects, technical skills, "
-            "and measurable achievements that directly align with this role.\n\n"
-            "I am available for an interview at your earliest convenience and "
-            "can join immediately. A quick 15-minute call would be a great start "
-            "-- I would love to show you how I can add value to your team.\n\n"
-            "Looking forward to hearing from you.\n\n"
+            "I am writing to express my interest in the {role_title} position"
+            "{at_company}. With {experience_years} years of professional "
+            "experience in {top_skills}, I am confident in my ability to "
+            "contribute meaningfully to your team from day one.\n\n"
+            "A brief overview of my qualifications:\n\n"
+            "  - {experience_years}+ years of hands-on experience delivering "
+            "production-grade solutions in {top_skills}\n"
+            "  - Demonstrated ability to drive measurable business outcomes "
+            "through technical execution\n"
+            "  - Strong cross-functional collaboration skills with a track "
+            "record of meeting tight deadlines\n\n"
+            "My resume is attached for your review. It details my professional "
+            "experience, key projects, and technical achievements that align "
+            "with this role.\n\n"
+            "I would welcome the opportunity to discuss how my background "
+            "can add value to your team. I am available for a conversation "
+            "at your earliest convenience.\n\n"
             "Best regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -216,24 +219,27 @@ MESSAGE_TEMPLATES = {
 
     "cold_outreach": {
         "label": "Cold Outreach",
-        "subject": "Experienced {role_title} -- Actively Seeking Opportunities{at_company} | {your_name}",
+        "subject": "{role_title} with {experience_years} Years of Experience -- {your_name} | Open to Opportunities{at_company}",
         "body": (
             "Dear {hr_name},\n\n"
-            "I am a {role_title} with strong hands-on experience in "
-            "{top_skills}, and I am actively looking for my next opportunity "
-            "where I can create real impact.\n\n"
-            "Here is what I can bring to your organization:\n\n"
-            "  - Proven skills in {top_skills} backed by real project outcomes\n"
-            "  - Ability to quickly adapt, learn, and deliver in fast-paced environments\n"
-            "  - A problem-solving mindset focused on driving measurable results\n\n"
-            "I have attached my resume which covers my projects, achievements, "
-            "and technical expertise in detail. I would love the chance to have "
-            "a quick 10-15 minute conversation to explore if there is a fit "
-            "within your team.\n\n"
-            "Even if there are no current openings, I would appreciate being "
-            "kept in mind for future roles. I am available for a call at your "
-            "convenience.\n\n"
-            "Thank you for your time.\n\n"
+            "I hope this message finds you well. I am a {role_title} with "
+            "{experience_years} years of professional experience specializing "
+            "in {top_skills}. I am reaching out to explore potential opportunities "
+            "within your organization{at_company} where my expertise could "
+            "add value.\n\n"
+            "A snapshot of my professional background:\n\n"
+            "  - {experience_years}+ years of industry experience building "
+            "and delivering production-grade solutions\n"
+            "  - Deep expertise in {top_skills} with measurable business impact\n"
+            "  - Proven ability to integrate seamlessly into cross-functional "
+            "teams and deliver under tight timelines\n\n"
+            "I have attached my resume for your reference, which provides a "
+            "detailed overview of my experience, technical projects, and "
+            "key achievements.\n\n"
+            "I would greatly appreciate the opportunity to have a brief "
+            "conversation to discuss how my background aligns with your "
+            "team's needs. I am available at your convenience.\n\n"
+            "Thank you for your time and consideration.\n\n"
             "Best regards,\n"
             "{your_name}\n"
             "{your_email} | {your_phone}"
@@ -350,6 +356,7 @@ def _get_profile() -> dict:
         "company_2_role": os.getenv("COMPANY_2_ROLE", ""),
         "company_2_location": os.getenv("COMPANY_2_LOCATION", ""),
         "company_2_duration": os.getenv("COMPANY_2_DURATION", ""),
+        "experience_years": os.getenv("YOUR_EXPERIENCE_YEARS", "4+"),
     }
 
 
@@ -405,6 +412,7 @@ def _compose_message(message_type: str, hr_name: str, company_name: str,
         "your_name": profile["name"] or "Applicant",
         "your_email": profile["email"] or "",
         "your_phone": profile["phone"] or "",
+        "experience_years": profile.get("experience_years", "4+"),
     }
 
     subject = custom_subject if custom_subject else tmpl["subject"].format(**replacements)

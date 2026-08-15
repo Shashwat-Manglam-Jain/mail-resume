@@ -104,7 +104,10 @@ export default function Home() {
   }, []);
 
   async function fetchRecords() {
-    fetch(`${API}/records`).then(r => r.ok ? r.json() : []).then(setRecords).catch(() => {});
+    try {
+      const r = await fetch(`${API}/records`);
+      if (r.ok) setRecords(await r.json());
+    } catch {}
   }
 
   async function fetchSkills(roleKey) {

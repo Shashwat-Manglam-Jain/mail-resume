@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -20,6 +20,9 @@ class Company(NeonBase):
 
 class Job(NeonBase):
     __tablename__ = "jobs"
+    __table_args__ = (
+        UniqueConstraint("source", "source_id", name="jobs_source_source_id_key"),
+    )
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"))
@@ -44,6 +47,9 @@ class Job(NeonBase):
 
 class Contact(NeonBase):
     __tablename__ = "contacts"
+    __table_args__ = (
+        UniqueConstraint("email", "company_id", name="contacts_email_company_id_key"),
+    )
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"))
@@ -77,6 +83,9 @@ class Application(NeonBase):
 
 class SentCompany(NeonBase):
     __tablename__ = "sent_companies"
+    __table_args__ = (
+        UniqueConstraint("company_name", "email_used", name="sent_companies_name_email_key"),
+    )
 
     id = Column(Integer, primary_key=True)
     company_name = Column(String(255), nullable=False)
@@ -88,6 +97,9 @@ class SentCompany(NeonBase):
 
 class CareerApplication(NeonBase):
     __tablename__ = "career_applications"
+    __table_args__ = (
+        UniqueConstraint("company_name", "job_url", name="career_apps_company_url_key"),
+    )
 
     id = Column(Integer, primary_key=True)
     company_name = Column(String(255), nullable=False)

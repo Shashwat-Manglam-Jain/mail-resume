@@ -1,24 +1,41 @@
 """
 main.py — FastAPI application for the Email Resume Bulk Sender.
 
-Endpoints:
-    GET  /profile              — user profile from .env
-    GET  /roles                — list all available role templates
-    GET  /roles/{key}/skills   — categorized skills for a role
-    GET  /message-templates    — list message template options
-    POST /message-preview      — preview composed subject + body
-    GET  /records              — list all queued records
-    POST /records              — create a new record
-    PUT  /records/{id}         — update a record
-    DELETE /records/{id}       — delete a single record
-    POST /records/{id}/send    — send one record, delete on success
-    POST /send-all             — send all records, delete successful ones
-    POST /validate-email       — validate an email address (syntax + MX + SMTP)
-    GET  /resume/{key}/pdf     — download cached PDF resume
-    GET  /resume/{key}/latex   — download auto-generated LaTeX resume
-    POST /resumes/generate     — regenerate all cached PDFs
-    GET  /resumes/status       — check if resume cache is ready
-    POST /resume/compile-latex — compile raw LaTeX to PDF (auto-downloads tectonic)
+Profile:
+    GET  /profile                       — user profile from DB / .env
+    PUT  /profile                       — update user profile
+
+Roles (Resume Builder):
+    GET  /roles                         — list all active roles
+    GET  /roles/{key}                   — full role detail
+    POST /roles                         — create a new role
+    PUT  /roles/{key}                   — update role fields
+    DELETE /roles/{key}                 — delete a role
+    GET  /roles/{key}/skills            — categorized skills
+    PUT  /roles/{key}/skills            — replace skill categories
+    PUT  /roles/{key}/experience        — replace client experience
+    PUT  /roles/{key}/achievements      — replace achievements
+    PUT  /roles/{key}/focus             — replace focus areas
+
+Mail Queue:
+    GET  /records                       — list all queued records
+    POST /records                       — add a record (validates email)
+    PUT  /records/{id}                  — update a record
+    DELETE /records/{id}                — delete a record
+    DELETE /records                     — clear all records
+    PATCH /records/{id}/cc              — update CC emails
+    POST /records/{id}/send             — send one email
+    POST /send-all                      — send all queued emails
+    POST /message-preview               — preview email subject + body
+    POST /validate-email                — validate an email address
+
+Resumes:
+    GET  /resume/{key}/pdf              — download PDF resume
+    GET  /resume/{key}/latex            — download LaTeX source
+    POST /resume/compile-latex          — compile raw LaTeX to PDF
+    GET  /resumes/download-all          — download all resumes as ZIP
+    POST /resumes/generate              — regenerate all cached PDFs
+    GET  /resumes/status                — check resume cache status
 """
 
 import os
@@ -30,7 +47,9 @@ from pathlib import Path
 from datetime import datetime
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Depends, HTTPException
+load_dotenv()
+
+from fastapi import FastAPI, Body, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, EmailStr
@@ -39,21 +58,19 @@ from email.message import EmailMessage
 
 from database import Base, SessionLocal, engine, NeonSessionLocal
 from models import Record
-from neon_models import (Company as NeonCompany, Job as NeonJob,
-                         Contact as NeonContact, SentCompany, Application,
-                         CareerApplication)
+from neon_models import (
+    Profile as ProfileModel, Role, RoleSkill,
+    RoleExperience, RoleAchievement, RoleFocusArea,
+)
 from email_checker import validate_email_full
 from resume_templates import (
     get_template,
     list_templates,
     generate_pdf_resume,
     make_latex_resume,
-    ROLE_TEMPLATES,
 )
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 Base.metadata.create_all(bind=engine)
 
@@ -65,10 +82,20 @@ else:
     RESUME_DIR = Path(__file__).parent / "generated_resumes"
 RESUME_DIR.mkdir(parents=True, exist_ok=True)
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(application):
+    if not IS_VERCEL:
+        import threading
+        threading.Thread(target=_generate_all_resumes, daemon=True).start()
+    yield
+
 app = FastAPI(
     title="Email Resume Bulk Sender",
     description="Queue HR emails, auto-generate role-specific resumes, "
                 "and bulk-send with one click.",
+    lifespan=lifespan,
 )
 
 _origins = ["http://localhost:3000"]
@@ -87,170 +114,27 @@ app.add_middleware(
 )
 
 
-MESSAGE_TEMPLATES = {
+EMAIL_SUBJECT_TEMPLATE = (
+    "{role_title} -- {your_name} ({experience_years} yrs exp)"
+)
 
-    "job_apply": {
-        "label": "Job Application",
-        "subject": "Application for {role_title} -- {your_name} | {experience_years} Years of Experience",
-        "body": (
-            "Dear {hr_name},\n\n"
-            "I am writing to express my interest in the {role_title} position"
-            "{at_company}. With {experience_years} years of professional "
-            "experience in {top_skills}, I am confident in my ability to "
-            "contribute meaningfully to your team from day one.\n\n"
-            "A brief overview of my qualifications:\n\n"
-            "  - {experience_years}+ years of hands-on experience delivering "
-            "production-grade solutions in {top_skills}\n"
-            "  - Demonstrated ability to drive measurable business outcomes "
-            "through technical execution\n"
-            "  - Strong cross-functional collaboration skills with a track "
-            "record of meeting tight deadlines\n\n"
-            "My resume is attached for your review. It details my professional "
-            "experience, key projects, and technical achievements that align "
-            "with this role.\n\n"
-            "I would welcome the opportunity to discuss how my background "
-            "can add value to your team. I am available for a conversation "
-            "at your earliest convenience.\n\n"
-            "Best regards,\n"
-            "{your_name}\n"
-            "{your_email} | {your_phone}"
-        ),
-    },
-
-    "interview_schedule": {
-        "label": "Interview Scheduling",
-        "subject": "Re: Interview Scheduling -- {role_title} | {your_name} (Available This Week)",
-        "body": (
-            "Dear {hr_name},\n\n"
-            "Thank you for shortlisting me for the {role_title} role"
-            "{at_company} -- I am thrilled about this opportunity and "
-            "eager to discuss how my skills in {top_skills} can directly "
-            "contribute to your team's goals.\n\n"
-            "I am flexible and available at the following times:\n\n"
-            "    Weekdays:   10:00 AM -- 12:00 PM IST\n"
-            "                 2:00 PM --  5:00 PM IST\n"
-            "    Saturdays:  10:00 AM --  1:00 PM IST\n\n"
-            "I am happy to work around your schedule -- please suggest any "
-            "other time slot and I will confirm right away.\n\n"
-            "My updated resume is attached for your reference. I am excited "
-            "to walk you through my projects and demonstrate how my experience "
-            "aligns with what you are looking for.\n\n"
-            "Looking forward to connecting soon.\n\n"
-            "Best regards,\n"
-            "{your_name}\n"
-            "{your_email} | {your_phone}"
-        ),
-    },
-
-    "follow_up": {
-        "label": "Follow Up",
-        "subject": "Following Up: {role_title} Application -- {your_name} | Still Very Interested",
-        "body": (
-            "Dear {hr_name},\n\n"
-            "I hope you are doing well. I recently applied for the "
-            "{role_title} position{at_company} and wanted to follow up "
-            "as I am genuinely excited about this opportunity.\n\n"
-            "To quickly recap what I bring:\n\n"
-            "  - Strong hands-on experience in {top_skills}\n"
-            "  - Real project outcomes with measurable business impact\n"
-            "  - Immediate availability and readiness to contribute from day one\n\n"
-            "I understand the hiring process takes time, but I wanted to "
-            "reaffirm my strong interest in this role. I am confident that "
-            "even a brief conversation would demonstrate why I am a strong "
-            "fit for your team.\n\n"
-            "I have re-attached my resume for your convenience. Would it be "
-            "possible to schedule a quick call this week?\n\n"
-            "Thank you for your time.\n\n"
-            "Best regards,\n"
-            "{your_name}\n"
-            "{your_email} | {your_phone}"
-        ),
-    },
-
-    "thank_you": {
-        "label": "Thank You (Post-Interview)",
-        "subject": "Thank You for the {role_title} Interview -- {your_name} | Excited to Join",
-        "body": (
-            "Dear {hr_name},\n\n"
-            "Thank you for taking the time to interview me for the "
-            "{role_title} position{at_company}. I really enjoyed our "
-            "conversation and learning more about the team and the "
-            "exciting challenges ahead.\n\n"
-            "After our discussion, I am even more enthusiastic about this "
-            "role. A few things I want to highlight:\n\n"
-            "  - My experience in {top_skills} maps directly to the problems "
-            "your team is solving\n"
-            "  - I am ready to hit the ground running and deliver results quickly\n"
-            "  - I am genuinely passionate about the work your organization is doing\n\n"
-            "I am very excited about the possibility of joining your team and "
-            "contributing to its success. Please do not hesitate to reach out "
-            "if you need any additional information from my side.\n\n"
-            "Looking forward to the next steps.\n\n"
-            "Warm regards,\n"
-            "{your_name}\n"
-            "{your_email} | {your_phone}"
-        ),
-    },
-
-    "referral": {
-        "label": "Referral Request",
-        "subject": "Would You Refer Me? {role_title} Role{at_company} -- {your_name}",
-        "body": (
-            "Dear {hr_name},\n\n"
-            "I hope you are doing well. I came across the {role_title} "
-            "opening{at_company} and I believe it is a great match for "
-            "my background.\n\n"
-            "Here is a quick snapshot of what I bring:\n\n"
-            "  - Strong expertise in {top_skills}\n"
-            "  - Hands-on project experience with proven, measurable results\n"
-            "  - Ready to contribute immediately and make an impact\n\n"
-            "I would be truly grateful if you could refer me for this role "
-            "or connect me with the right person on the hiring team. Even a "
-            "brief introduction would mean a lot.\n\n"
-            "I have attached my resume for your review -- it covers my "
-            "projects, skills, and achievements in detail.\n\n"
-            "Thank you so much for your time and support.\n\n"
-            "Warm regards,\n"
-            "{your_name}\n"
-            "{your_email} | {your_phone}"
-        ),
-    },
-
-    "cold_outreach": {
-        "label": "Cold Outreach",
-        "subject": "{role_title} with {experience_years} Years of Experience -- {your_name} | Open to Opportunities{at_company}",
-        "body": (
-            "Dear {hr_name},\n\n"
-            "I hope this message finds you well. I am a {role_title} with "
-            "{experience_years} years of professional experience specializing "
-            "in {top_skills}. I am reaching out to explore potential opportunities "
-            "within your organization{at_company} where my expertise could "
-            "add value.\n\n"
-            "A snapshot of my professional background:\n\n"
-            "  - {experience_years}+ years of industry experience building "
-            "and delivering production-grade solutions\n"
-            "  - Deep expertise in {top_skills} with measurable business impact\n"
-            "  - Proven ability to integrate seamlessly into cross-functional "
-            "teams and deliver under tight timelines\n\n"
-            "I have attached my resume for your reference, which provides a "
-            "detailed overview of my experience, technical projects, and "
-            "key achievements.\n\n"
-            "I would greatly appreciate the opportunity to have a brief "
-            "conversation to discuss how my background aligns with your "
-            "team's needs. I am available at your convenience.\n\n"
-            "Thank you for your time and consideration.\n\n"
-            "Best regards,\n"
-            "{your_name}\n"
-            "{your_email} | {your_phone}"
-        ),
-    },
-
-    "custom": {
-        "label": "Custom Message",
-        "subject": "",
-        "body": "",
-    },
-}
+EMAIL_BODY_TEMPLATE = (
+    "{greeting}\n\n"
+    "I came across the {role_title} opening{at_company} and wanted "
+    "to reach out. I've been working with {top_skills} for about "
+    "{experience_years} years now, mostly building backend systems "
+    "and shipping production code for clients across the US and Europe.\n\n"
+    "I've attached my resume -- it covers the specifics better than "
+    "I can in an email, but the short version is that I've spent most "
+    "of my career solving real operational problems: automating manual "
+    "workflows, building data pipelines, and getting things into "
+    "production reliably.\n\n"
+    "Would love to chat if you think there's a fit. Happy to jump "
+    "on a quick call whenever works for you.\n\n"
+    "Thanks,\n"
+    "{your_name}\n"
+    "{your_email} | {your_phone}"
+)
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────
@@ -261,7 +145,7 @@ class RecordCreate(BaseModel):
     hr_name: str = ""
     company_name: str = ""
     role_key: str = ""
-    message_type: str = "job_apply"
+    experience_years: int = 4
     custom_subject: str = ""
     custom_body: str = ""
 
@@ -273,13 +157,12 @@ class RecordOut(BaseModel):
     hr_name: str
     company_name: str
     role_key: str
-    message_type: str
+    experience_years: int = 4
     custom_subject: str
     custom_body: str
     created_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class SendResult(BaseModel):
@@ -288,41 +171,9 @@ class SendResult(BaseModel):
     errors: list[dict]
 
 
-class PreviewRequest(BaseModel):
-    message_type: str = "job_apply"
-    hr_name: str = ""
-    company_name: str = ""
-    role_key: str = ""
-    custom_subject: str = ""
-    custom_body: str = ""
-
-
 class ValidateEmailRequest(BaseModel):
     email: str
     skip_smtp: bool = False
-
-
-class CustomResumeRequest(BaseModel):
-    role_key: str = ""
-    custom_name: str = ""
-    custom_email: str = ""
-    custom_phone: str = ""
-    custom_location: str = ""
-    custom_linkedin: str = ""
-    custom_github: str = ""
-    custom_portfolio: str = ""
-    custom_education: str = ""
-    custom_graduation_year: str = ""
-    custom_summary: str = ""
-    custom_skills: dict = {}
-    custom_company_1_name: str = ""
-    custom_company_1_role: str = ""
-    custom_company_1_location: str = ""
-    custom_company_1_duration: str = ""
-    custom_company_2_name: str = ""
-    custom_company_2_role: str = ""
-    custom_company_2_location: str = ""
-    custom_company_2_duration: str = ""
 
 
 class CompileLatexRequest(BaseModel):
@@ -337,7 +188,7 @@ class UpdateCCRequest(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────
 
 def _get_profile() -> dict:
-    return {
+    env_profile = {
         "name": os.getenv("YOUR_NAME", ""),
         "email": os.getenv("YOUR_EMAIL", ""),
         "phone": os.getenv("YOUR_PHONE", ""),
@@ -357,6 +208,20 @@ def _get_profile() -> dict:
         "company_2_duration": os.getenv("COMPANY_2_DURATION", ""),
         "experience_years": os.getenv("YOUR_EXPERIENCE_YEARS", "4+"),
     }
+    if NeonSessionLocal:
+        try:
+            ndb = NeonSessionLocal()
+            row = ndb.query(ProfileModel).first()
+            ndb.close()
+            if row:
+                db_profile = {}
+                for field in env_profile:
+                    val = getattr(row, field, "")
+                    db_profile[field] = val if val else env_profile[field]
+                return db_profile
+        except Exception:
+            pass
+    return env_profile
 
 
 def _get_smtp_settings() -> tuple:
@@ -374,48 +239,68 @@ def _get_smtp_settings() -> tuple:
     return host, port, user, password, sender
 
 
+def _neon_db_session():
+    if NeonSessionLocal:
+        return NeonSessionLocal()
+    return None
+
+
 def _get_role_title(role_key: str) -> str:
-    template = get_template(role_key)
+    if not role_key:
+        return "Professional"
+    ndb = _neon_db_session()
+    if not ndb:
+        return role_key.replace("_", " ").title()
+    try:
+        template = get_template(role_key, db=ndb)
+    finally:
+        ndb.close()
     if template:
         return template["title"]
-    return role_key.replace("_", " ").title() if role_key else "Professional"
+    return role_key.replace("_", " ").title()
 
 
 def _get_top_skills(role_key: str, count: int = 5) -> str:
-    template = get_template(role_key)
+    if not role_key:
+        return "modern technologies and tools"
+    ndb = _neon_db_session()
+    if not ndb:
+        return "modern technologies and tools"
+    try:
+        template = get_template(role_key, db=ndb)
+    finally:
+        ndb.close()
     if template:
         all_skills = [s for vals in template["skills"].values() for s in vals]
         return ", ".join(all_skills[:count])
     return "modern technologies and tools"
 
 
-def _compose_message(message_type: str, hr_name: str, company_name: str,
+def _compose_message(hr_name: str, company_name: str,
                      role_key: str, custom_subject: str = "",
-                     custom_body: str = "") -> tuple[str, str]:
-    if message_type == "custom" and custom_subject and custom_body:
-        return custom_subject, custom_body
-
+                     custom_body: str = "",
+                     experience_years: int = 4) -> tuple[str, str]:
     if custom_subject and custom_body:
         return custom_subject, custom_body
 
     profile = _get_profile()
-    tmpl = MESSAGE_TEMPLATES.get(message_type, MESSAGE_TEMPLATES["job_apply"])
-
     at_company = f" at {company_name}" if company_name.strip() else ""
+    hr_clean = hr_name.strip()
+    greeting = f"Hi {hr_clean}," if hr_clean else "Hey there,"
 
     replacements = {
-        "hr_name": hr_name.strip() if hr_name.strip() else "Sir/Madam",
+        "greeting": greeting,
         "at_company": at_company,
         "role_title": _get_role_title(role_key),
         "top_skills": _get_top_skills(role_key),
         "your_name": profile["name"] or "Applicant",
         "your_email": profile["email"] or "",
         "your_phone": profile["phone"] or "",
-        "experience_years": profile.get("experience_years", "4+"),
+        "experience_years": str(experience_years),
     }
 
-    subject = custom_subject if custom_subject else tmpl["subject"].format(**replacements)
-    body = custom_body if custom_body else tmpl["body"].format(**replacements)
+    subject = custom_subject if custom_subject else EMAIL_SUBJECT_TEMPLATE.format(**replacements)
+    body = custom_body if custom_body else EMAIL_BODY_TEMPLATE.format(**replacements)
     return subject, body
 
 
@@ -439,37 +324,45 @@ def _validate_and_filter_cc(cc_list: list[str], from_email: str) -> tuple[list[s
 
 def _generate_all_resumes():
     profile = _get_profile()
-    count = 0
-    for template in ROLE_TEMPLATES:
-        key = template["key"]
-        pdf_path = RESUME_DIR / f"{key}.pdf"
-        try:
-            pdf_bytes = generate_pdf_resume(key, profile)
-            pdf_path.write_bytes(pdf_bytes)
-            count += 1
-        except Exception as exc:
-            logger.warning("Failed to generate resume for %s: %s", key, exc)
+    ndb = _neon_db_session()
+    if not ndb:
+        logger.warning("Neon DB not configured — skipping resume generation")
+        return 0
+    try:
+        roles = list_templates(db=ndb)
+        count = 0
+        for t in roles:
+            key = t["key"]
+            pdf_path = RESUME_DIR / f"{key}.pdf"
+            try:
+                pdf_bytes = generate_pdf_resume(key, profile, db=ndb)
+                pdf_path.write_bytes(pdf_bytes)
+                count += 1
+            except Exception as exc:
+                logger.warning("Failed to generate resume for %s: %s", key, exc)
+    finally:
+        ndb.close()
     logger.info("Generated %d resume PDFs in %s", count, RESUME_DIR)
     return count
 
 
-def _get_cached_resume(role_key: str) -> bytes:
+def _get_resume_for_send(role_key: str, experience_years: int = 4) -> bytes:
+    """Generate a fresh PDF with the given experience_years (no caching)."""
     custom_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
     if custom_path:
         p = Path(custom_path)
         if p.exists():
             return p.read_bytes()
-    pdf_path = RESUME_DIR / f"{role_key}.pdf"
-    if pdf_path.exists():
-        return pdf_path.read_bytes()
     profile = _get_profile()
-    pdf_bytes = generate_pdf_resume(role_key, profile)
-    pdf_path.write_bytes(pdf_bytes)
-    return pdf_bytes
+    ndb = _neon_db_session()
+    try:
+        return generate_pdf_resume(role_key, profile, db=ndb,
+                                   experience_years=experience_years)
+    finally:
+        if ndb:
+            ndb.close()
 
 
-if not IS_VERCEL:
-    _generate_all_resumes()
 
 
 def _send_email(to_email: str, subject: str, body: str,
@@ -499,29 +392,6 @@ def _send_email(to_email: str, subject: str, body: str,
         server.send_message(msg, to_addrs=all_recipients)
 
 
-def _log_sent_company(company_name: str, to_email: str):
-    """Log a sent email to the Neon sent_companies table (best-effort)."""
-    if not company_name or not NeonSessionLocal:
-        return
-    ndb = NeonSessionLocal()
-    try:
-        existing = ndb.query(SentCompany).filter(
-            SentCompany.company_name == company_name.lower().strip(),
-            SentCompany.email_used == to_email.lower().strip(),
-        ).first()
-        if not existing:
-            ndb.add(SentCompany(
-                company_name=company_name.lower().strip(),
-                email_used=to_email.lower().strip(),
-                sent_via=os.getenv("SMTP_USER", ""),
-                month_key=datetime.now().strftime("%Y-%m"),
-            ))
-            ndb.commit()
-    except Exception:
-        pass
-    finally:
-        ndb.close()
-
 
 def _send_single_record(record: Record, db: Session) -> dict:
     profile = _get_profile()
@@ -539,19 +409,21 @@ def _send_single_record(record: Record, db: Session) -> dict:
     cc_list = _parse_cc_emails(record.cc_emails)
     valid_cc, skipped_cc = _validate_and_filter_cc(cc_list, from_email)
 
+    exp_years = getattr(record, "experience_years", 4) or 4
+
     subject, body = _compose_message(
-        record.message_type,
         record.hr_name,
         record.company_name,
         record.role_key,
         record.custom_subject,
         record.custom_body,
+        experience_years=exp_years,
     )
 
     try:
-        pdf_bytes = _get_cached_resume(record.role_key)
+        pdf_bytes = _get_resume_for_send(record.role_key, exp_years)
     except Exception:
-        pdf_bytes = _get_cached_resume("ai_ml_engineer")
+        pdf_bytes = _get_resume_for_send("ai_ml_engineer", exp_years)
 
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
     custom_resume_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
@@ -572,7 +444,6 @@ def _send_single_record(record: Record, db: Session) -> dict:
             "skipped_cc": skipped_cc,
         }
 
-    _log_sent_company(record.company_name, record.to_email)
     db.delete(record)
     return {
         "id": record.id,
@@ -591,8 +462,8 @@ def _get_db():
 
 
 def _get_neon_db():
-    if NeonSessionLocal is None:
-        raise HTTPException(status_code=503, detail="Neon DB not configured")
+    if not NeonSessionLocal:
+        raise HTTPException(status_code=500, detail="Neon DB not configured")
     db = NeonSessionLocal()
     try:
         yield db
@@ -607,14 +478,130 @@ def get_profile():
     return _get_profile()
 
 
+@app.put("/profile")
+def update_profile(data: dict = Body(...), neon_db: Session = Depends(_get_neon_db)):
+    row = neon_db.query(ProfileModel).first()
+    if not row:
+        row = ProfileModel()
+        neon_db.add(row)
+    allowed = {
+        "name", "email", "phone", "location", "linkedin", "github",
+        "portfolio", "education", "graduation_year", "experience_years",
+        "company_1_name", "company_1_role", "company_1_location", "company_1_duration",
+        "company_2_name", "company_2_role", "company_2_location", "company_2_duration",
+    }
+    for k, v in data.items():
+        if k in allowed:
+            setattr(row, k, v or "")
+    neon_db.commit()
+    neon_db.refresh(row)
+    return _get_profile()
+
+
 @app.get("/roles")
 def get_roles():
-    return list_templates()
+    if not NeonSessionLocal:
+        return []
+    db = NeonSessionLocal()
+    try:
+        return list_templates(db=db)
+    finally:
+        db.close()
+
+
+@app.post("/message-preview")
+def message_preview(data: dict = Body(...)):
+    role_key = data.get("role_key", "")
+    hr_name = data.get("hr_name", "")
+    company_name = data.get("company_name", "")
+    role_title = data.get("role_title", "")
+    experience_years = data.get("experience_years", 4)
+
+    profile = _get_profile()
+    at_company = f" at {company_name}" if company_name.strip() else ""
+
+    if role_title:
+        title = role_title
+    elif role_key:
+        title = _get_role_title(role_key)
+    else:
+        title = "Professional"
+
+    hr_clean = hr_name.strip()
+    greeting = f"Hi {hr_clean}," if hr_clean else "Hey there,"
+
+    replacements = {
+        "greeting": greeting,
+        "at_company": at_company,
+        "role_title": title,
+        "top_skills": _get_top_skills(role_key) if role_key else "modern technologies and tools",
+        "your_name": profile["name"] or "Applicant",
+        "your_email": profile["email"] or "",
+        "your_phone": profile["phone"] or "",
+        "experience_years": str(experience_years),
+    }
+
+    return {
+        "subject": EMAIL_SUBJECT_TEMPLATE.format(**replacements),
+        "body": EMAIL_BODY_TEMPLATE.format(**replacements),
+    }
+
+
+@app.get("/roles/{role_key}")
+def get_role_detail(role_key: str, neon_db: Session = Depends(_get_neon_db)):
+    template = get_template(role_key, db=neon_db)
+    if not template:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return template
+
+
+@app.post("/roles")
+def create_role(data: dict = Body(...), neon_db: Session = Depends(_get_neon_db)):
+    key = data.get("key", "").strip().lower().replace(" ", "_").replace("-", "_")
+    if not key:
+        raise HTTPException(status_code=422, detail="Role key is required")
+    existing = neon_db.query(Role).filter(Role.key == key).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Role key already exists")
+    max_order = neon_db.query(Role.sort_order).order_by(Role.sort_order.desc()).first()
+    role = Role(
+        key=key,
+        title=data.get("title", key.replace("_", " ").title()),
+        previous_title=data.get("previous_title", ""),
+        summary=data.get("summary", ""),
+        coursework=data.get("coursework", ""),
+        sort_order=(max_order[0] + 1) if max_order else 0,
+    )
+    neon_db.add(role)
+    neon_db.commit()
+    return get_template(key, db=neon_db)
+
+
+@app.put("/roles/{role_key}")
+def update_role(role_key: str, data: dict = Body(...), neon_db: Session = Depends(_get_neon_db)):
+    role = neon_db.query(Role).filter(Role.key == role_key).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    for field in ("title", "previous_title", "summary", "coursework"):
+        if field in data:
+            setattr(role, field, data[field])
+    neon_db.commit()
+    return get_template(role_key, db=neon_db)
+
+
+@app.delete("/roles/{role_key}")
+def delete_role(role_key: str, neon_db: Session = Depends(_get_neon_db)):
+    role = neon_db.query(Role).filter(Role.key == role_key).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    neon_db.delete(role)
+    neon_db.commit()
+    return {"detail": f"Role '{role_key}' deleted"}
 
 
 @app.get("/roles/{role_key}/skills")
-def get_role_skills(role_key: str):
-    template = get_template(role_key)
+def get_role_skills(role_key: str, neon_db: Session = Depends(_get_neon_db)):
+    template = get_template(role_key, db=neon_db)
     if not template:
         raise HTTPException(status_code=404, detail="Role not found")
     return [
@@ -623,21 +610,70 @@ def get_role_skills(role_key: str):
     ]
 
 
-@app.get("/message-templates")
-def get_message_templates():
-    return [
-        {"key": key, "label": tmpl["label"]}
-        for key, tmpl in MESSAGE_TEMPLATES.items()
-    ]
+@app.put("/roles/{role_key}/skills")
+def update_role_skills(role_key: str, data: list = Body(...), neon_db: Session = Depends(_get_neon_db)):
+    role = neon_db.query(Role).filter(Role.key == role_key).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    neon_db.query(RoleSkill).filter(RoleSkill.role_id == role.id).delete()
+    for i, item in enumerate(data):
+        neon_db.add(RoleSkill(
+            role_id=role.id,
+            category=item.get("category", ""),
+            skills=item.get("skills", []),
+            sort_order=i,
+        ))
+    neon_db.commit()
+    return get_template(role_key, db=neon_db)["skills"]
 
 
-@app.post("/message-preview")
-def preview_message(req: PreviewRequest):
-    subject, body = _compose_message(
-        req.message_type, req.hr_name, req.company_name, req.role_key,
-        req.custom_subject, req.custom_body,
-    )
-    return {"subject": subject, "body": body}
+
+@app.put("/roles/{role_key}/experience")
+def update_role_experience(role_key: str, data: list = Body(...),
+                           neon_db: Session = Depends(_get_neon_db)):
+    role = neon_db.query(Role).filter(Role.key == role_key).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    neon_db.query(RoleExperience).filter(RoleExperience.role_id == role.id).delete()
+    for i, item in enumerate(data):
+        neon_db.add(RoleExperience(
+            role_id=role.id,
+            position_index=item.get("position_index", i),
+            bullets=item.get("bullets", []),
+            client_name=item.get("client_name", ""),
+            client_location=item.get("client_location", ""),
+            min_years=item.get("min_years", 1),
+        ))
+    neon_db.commit()
+    return get_template(role_key, db=neon_db)["clients"]
+
+
+@app.put("/roles/{role_key}/achievements")
+def update_role_achievements(role_key: str, data: list = Body(...),
+                             neon_db: Session = Depends(_get_neon_db)):
+    role = neon_db.query(Role).filter(Role.key == role_key).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    neon_db.query(RoleAchievement).filter(RoleAchievement.role_id == role.id).delete()
+    for i, item in enumerate(data):
+        text = item if isinstance(item, str) else item.get("text", "")
+        neon_db.add(RoleAchievement(role_id=role.id, text=text, sort_order=i))
+    neon_db.commit()
+    return get_template(role_key, db=neon_db)["achievements"]
+
+
+@app.put("/roles/{role_key}/focus")
+def update_role_focus(role_key: str, data: list = Body(...),
+                      neon_db: Session = Depends(_get_neon_db)):
+    role = neon_db.query(Role).filter(Role.key == role_key).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    neon_db.query(RoleFocusArea).filter(RoleFocusArea.role_id == role.id).delete()
+    for i, item in enumerate(data):
+        area = item if isinstance(item, str) else item.get("area", "")
+        neon_db.add(RoleFocusArea(role_id=role.id, area=area, sort_order=i))
+    neon_db.commit()
+    return get_template(role_key, db=neon_db)["focus"]
 
 
 @app.post("/validate-email")
@@ -648,12 +684,14 @@ def validate_email_endpoint(req: ValidateEmailRequest):
 
 
 @app.get("/resume/{role_key}/pdf")
-def download_resume_pdf(role_key: str):
-    template = get_template(role_key)
+def download_resume_pdf(role_key: str, experience_years: int = 4,
+                        neon_db: Session = Depends(_get_neon_db)):
+    template = get_template(role_key, db=neon_db)
     if not template:
         raise HTTPException(status_code=404, detail="Role not found")
-    pdf_bytes = _get_cached_resume(role_key)
     profile = _get_profile()
+    pdf_bytes = generate_pdf_resume(role_key, profile, db=neon_db,
+                                    experience_years=experience_years)
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
     filename = f"{name_slug}_{template['title'].replace(' ', '_')}_Resume.pdf"
     return StreamingResponse(
@@ -664,65 +702,14 @@ def download_resume_pdf(role_key: str):
 
 
 @app.get("/resume/{role_key}/latex", response_class=PlainTextResponse)
-def download_resume_latex(role_key: str):
-    template = get_template(role_key)
+def download_resume_latex(role_key: str, experience_years: int = 4,
+                          neon_db: Session = Depends(_get_neon_db)):
+    template = get_template(role_key, db=neon_db)
     if not template:
         raise HTTPException(status_code=404, detail="Role not found")
     profile = _get_profile()
-    return make_latex_resume(template, profile)
+    return make_latex_resume(template, profile, experience_years=experience_years)
 
-
-@app.post("/resume/custom")
-def generate_custom_resume(req: CustomResumeRequest):
-    """Generate a custom PDF resume with user-provided overrides."""
-    from resume_templates import generate_pdf_resume, get_template
-    import copy
-
-    base_profile = _get_profile()
-    profile = {
-        "name": req.custom_name or base_profile["name"],
-        "email": req.custom_email or base_profile["email"],
-        "phone": req.custom_phone or base_profile["phone"],
-        "location": req.custom_location or base_profile["location"],
-        "linkedin": req.custom_linkedin or base_profile["linkedin"],
-        "github": req.custom_github or base_profile["github"],
-        "portfolio": req.custom_portfolio or base_profile["portfolio"],
-        "education": req.custom_education or base_profile["education"],
-        "graduation_year": req.custom_graduation_year or base_profile["graduation_year"],
-        "company_1_name": req.custom_company_1_name or base_profile["company_1_name"],
-        "company_1_role": req.custom_company_1_role or base_profile.get("company_1_role", ""),
-        "company_1_location": req.custom_company_1_location or base_profile["company_1_location"],
-        "company_1_duration": req.custom_company_1_duration or base_profile["company_1_duration"],
-        "company_2_name": req.custom_company_2_name or base_profile["company_2_name"],
-        "company_2_role": req.custom_company_2_role or base_profile.get("company_2_role", ""),
-        "company_2_location": req.custom_company_2_location or base_profile["company_2_location"],
-        "company_2_duration": req.custom_company_2_duration or base_profile["company_2_duration"],
-    }
-
-    role_key = req.role_key or "software_engineer"
-    template = get_template(role_key)
-    if not template:
-        raise HTTPException(status_code=404, detail="Role not found")
-
-    if req.custom_summary or req.custom_skills:
-        tmpl = copy.deepcopy(template)
-        if req.custom_summary:
-            tmpl["summary"] = req.custom_summary
-        if req.custom_skills:
-            tmpl["skills"] = req.custom_skills
-        pdf_bytes = _generate_from_template(tmpl, profile)
-    else:
-        pdf_bytes = generate_pdf_resume(role_key, profile)
-
-    name_slug = (profile.get("name") or "Resume").replace(" ", "_")
-    role_slug = template["title"].replace(" ", "_")
-    filename = f"{name_slug}_{role_slug}_Resume.pdf"
-
-    return StreamingResponse(
-        BytesIO(pdf_bytes),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
 
 
 _TECTONIC_DIR = Path(__file__).parent / "bin"
@@ -867,128 +854,6 @@ def compile_latex_to_pdf(req: CompileLatexRequest):
     )
 
 
-def _generate_from_template(template: dict, profile: dict) -> bytes:
-    """Generate PDF from a modified template dict."""
-    from resume_templates import _ResumePDF, _sanitize
-
-    name = (profile.get("name") or "YOUR NAME").upper()
-    email = profile.get("email") or ""
-    phone = profile.get("phone") or ""
-    location = profile.get("location") or ""
-    linkedin = (profile.get("linkedin") or "").replace("https://", "").rstrip("/")
-    github = (profile.get("github") or "").replace("https://", "").rstrip("/")
-    portfolio = (profile.get("portfolio") or "").replace("https://", "").rstrip("/")
-    education = profile.get("education") or ""
-    grad_year = profile.get("graduation_year") or ""
-
-    pdf = _ResumePDF()
-    pdf.add_page()
-
-    pdf.set_font("Helvetica", "B", 20)
-    pdf.set_text_color(20, 20, 20)
-    pdf.cell(w=0, h=9, text=name, align="C", new_x="LMARGIN", new_y="NEXT")
-
-    contact_parts = [p for p in [email, phone, location] if p]
-    pdf.set_font("Helvetica", "", 8.5)
-    pdf.set_text_color(80, 80, 80)
-    pdf.cell(w=0, h=4.5, text="  |  ".join(contact_parts),
-             align="C", new_x="LMARGIN", new_y="NEXT")
-
-    link_parts = [p for p in [linkedin, github, portfolio] if p]
-    if link_parts:
-        pdf.cell(w=0, h=4.5, text="  |  ".join(link_parts),
-                 align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
-    pdf.section_header("Professional Summary")
-    pdf.set_font("Helvetica", "", 8.5)
-    pdf.set_text_color(50, 50, 50)
-    pdf.multi_cell(w=0, h=4, text=template["summary"])
-    pdf.ln(1.5)
-
-    pdf.section_header("Technical Skills")
-    for category, skill_list in template["skills"].items():
-        pdf.set_font("Helvetica", "B", 8.5)
-        pdf.set_text_color(40, 40, 40)
-        pdf.cell(w=38, h=4.5, text=f"{category}:")
-        pdf.set_font("Helvetica", "", 8.5)
-        pdf.set_text_color(60, 60, 60)
-        pdf.multi_cell(w=0, h=4.5, text=", ".join(skill_list))
-        pdf.ln(0.2)
-    pdf.ln(1)
-
-    pdf.section_header("Professional Experience")
-    c1_name = profile.get("company_1_name") or "Current Company"
-    c1_loc = profile.get("company_1_location") or ""
-    c1_dur = profile.get("company_1_duration") or "Jan 2024 -- Present"
-    c2_name = profile.get("company_2_name") or "Previous Company"
-    c2_loc = profile.get("company_2_location") or ""
-    c2_dur = profile.get("company_2_duration") or "Jul 2022 -- Dec 2023"
-
-    exp = template["experience"]
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_text_color(30, 30, 30)
-    pdf.cell(w=0, h=5, text=template["title"])
-    pdf.set_font("Helvetica", "I", 8.5)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(w=0, h=5, text=c1_dur, align="R", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 8.5)
-    pdf.set_text_color(80, 80, 80)
-    pdf.cell(w=0, h=4, text=", ".join(p for p in [c1_name, c1_loc] if p),
-             new_x="LMARGIN", new_y="NEXT")
-    if len(exp) > 0:
-        for b in exp[0].get("bullets", []):
-            pdf.bullet(b)
-    pdf.ln(1)
-
-    prev_title = template.get("previous_title", f"Junior {template['title']}")
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_text_color(30, 30, 30)
-    pdf.cell(w=0, h=5, text=prev_title)
-    pdf.set_font("Helvetica", "I", 8.5)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(w=0, h=5, text=c2_dur, align="R", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 8.5)
-    pdf.set_text_color(80, 80, 80)
-    pdf.cell(w=0, h=4, text=", ".join(p for p in [c2_name, c2_loc] if p),
-             new_x="LMARGIN", new_y="NEXT")
-    if len(exp) > 1:
-        for b in exp[1].get("bullets", []):
-            pdf.bullet(b)
-    pdf.ln(1)
-
-    pdf.section_header("Key Projects")
-    for project in template["projects"]:
-        pdf.set_font("Helvetica", "B", 8.5)
-        pdf.set_text_color(30, 30, 30)
-        pdf.cell(w=0, h=5, text=project["name"])
-        pdf.set_font("Helvetica", "I", 8)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(w=0, h=5, text=project["stack"], align="R", new_x="LMARGIN", new_y="NEXT")
-        for b in project["bullets"]:
-            pdf.bullet(b)
-        pdf.ln(0.5)
-    pdf.ln(0.5)
-
-    pdf.section_header("Education")
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_text_color(30, 30, 30)
-    pdf.cell(w=0, h=5, text=education)
-    pdf.set_font("Helvetica", "", 8.5)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(w=0, h=5, text=grad_year, align="R", new_x="LMARGIN", new_y="NEXT")
-    cw = template.get("coursework", "Data Structures, Algorithms, Databases, Statistics, Software Engineering")
-    pdf.set_font("Helvetica", "", 8)
-    pdf.set_text_color(80, 80, 80)
-    pdf.cell(w=0, h=4, text=f"Relevant coursework: {cw}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(1)
-
-    pdf.section_header("Achievements")
-    for ach in template["achievements"]:
-        pdf.bullet(ach, indent=2)
-
-    return bytes(pdf.output())
-
 
 @app.patch("/records/{record_id}/cc")
 def update_record_cc(record_id: int, data: UpdateCCRequest, db: Session = Depends(_get_db)):
@@ -1003,20 +868,21 @@ def update_record_cc(record_id: int, data: UpdateCCRequest, db: Session = Depend
 
 
 @app.get("/resumes/download-all")
-def download_all_resumes():
+def download_all_resumes(neon_db: Session = Depends(_get_neon_db)):
     """Download all generated resumes as a single ZIP file."""
     import zipfile
 
     profile = _get_profile()
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
+    roles = list_templates(db=neon_db)
 
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for template in ROLE_TEMPLATES:
-            key = template["key"]
+        for t in roles:
+            key = t["key"]
             try:
-                pdf_bytes = _get_cached_resume(key)
-                role_slug = template["title"].replace(" ", "_")
+                pdf_bytes = generate_pdf_resume(key, profile, db=neon_db)
+                role_slug = t["title"].replace(" ", "_")
                 filename = f"{name_slug}_{role_slug}_Resume.pdf"
                 zf.writestr(filename, pdf_bytes)
             except Exception:
@@ -1038,9 +904,10 @@ def regenerate_resumes():
 
 
 @app.get("/resumes/status")
-def resume_cache_status():
-    total = len(ROLE_TEMPLATES)
-    cached = sum(1 for t in ROLE_TEMPLATES if (RESUME_DIR / f"{t['key']}.pdf").exists())
+def resume_cache_status(neon_db: Session = Depends(_get_neon_db)):
+    roles = list_templates(db=neon_db)
+    total = len(roles)
+    cached = sum(1 for t in roles if (RESUME_DIR / f"{t['key']}.pdf").exists())
     return {"total": total, "cached": cached, "ready": cached == total}
 
 
@@ -1080,7 +947,7 @@ def create_record(data: RecordCreate, db: Session = Depends(_get_db)):
         hr_name=data.hr_name,
         company_name=data.company_name,
         role_key=data.role_key,
-        message_type=data.message_type,
+        experience_years=data.experience_years,
         custom_subject=data.custom_subject,
         custom_body=data.custom_body,
     )
@@ -1100,7 +967,7 @@ def update_record(record_id: int, data: RecordCreate, db: Session = Depends(_get
     record.hr_name = data.hr_name
     record.company_name = data.company_name
     record.role_key = data.role_key
-    record.message_type = data.message_type
+    record.experience_years = data.experience_years
     record.custom_subject = data.custom_subject
     record.custom_body = data.custom_body
     db.commit()
@@ -1182,15 +1049,18 @@ def send_all(db: Session = Depends(_get_db)):
             cc_list = _parse_cc_emails(record.cc_emails)
             valid_cc, skipped_cc = _validate_and_filter_cc(cc_list, from_email)
 
+            exp_years = getattr(record, "experience_years", 4) or 4
+
             subject, body = _compose_message(
-                record.message_type, record.hr_name, record.company_name,
+                record.hr_name, record.company_name,
                 record.role_key, record.custom_subject, record.custom_body,
+                experience_years=exp_years,
             )
 
             try:
-                pdf_bytes = _get_cached_resume(record.role_key)
+                pdf_bytes = _get_resume_for_send(record.role_key, exp_years)
             except Exception:
-                pdf_bytes = _get_cached_resume("ai_ml_engineer")
+                pdf_bytes = _get_resume_for_send("ai_ml_engineer", exp_years)
 
             name_slug = (profile.get("name") or "Resume").replace(" ", "_")
             custom_resume_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
@@ -1232,7 +1102,6 @@ def send_all(db: Session = Depends(_get_db)):
                 continue
 
             db.delete(record)
-            _log_sent_company(record.company_name, record.to_email)
             sent += 1
     finally:
         try:
@@ -1244,369 +1113,3 @@ def send_all(db: Session = Depends(_get_db)):
     return SendResult(sent=sent, failed=failed, errors=errors)
 
 
-# ── Scraped Jobs (Neon DB) ───────────────────────────────────────────────
-
-class JobOut(BaseModel):
-    id: int
-    company_name: str = ""
-    company_domain: str | None = None
-    source: str = ""
-    title: str = ""
-    url: str | None = None
-    location: str | None = None
-    role_key: str | None = None
-    match_confidence: float | None = None
-    posted_at: str | None = None
-    contacts: list[dict] = []
-
-    class Config:
-        from_attributes = True
-
-
-class QueueFromJobRequest(BaseModel):
-    contact_email: str
-    hr_name: str = ""
-    role_key: str = ""
-    message_type: str = "job_apply"
-
-
-class AddContactRequest(BaseModel):
-    email: str
-    name: str = ""
-    title: str = ""
-
-
-@app.get("/scraped-jobs")
-def list_scraped_jobs(
-    source: str | None = None,
-    has_email: bool | None = None,
-    search: str | None = None,
-    role_key: str | None = None,
-    include_sent: bool = False,
-    limit: int = 100,
-    offset: int = 0,
-    ndb: Session = Depends(_get_neon_db),
-):
-    q = ndb.query(NeonJob).join(NeonCompany)
-
-    if not include_sent:
-        from sqlalchemy import func as sa_func
-        sent_sub = ndb.query(SentCompany.company_name).distinct()
-        q = q.filter(~sa_func.lower(sa_func.trim(NeonCompany.name)).in_(sent_sub))
-
-    if source:
-        q = q.filter(NeonJob.source == source)
-    if role_key:
-        q = q.filter(NeonJob.role_key == role_key)
-    if search:
-        pattern = f"%{search}%"
-        q = q.filter(
-            (NeonJob.title.ilike(pattern)) | (NeonCompany.name.ilike(pattern))
-        )
-    if has_email is not None:
-        sub = ndb.query(NeonContact.company_id).distinct()
-        if has_email:
-            q = q.filter(NeonJob.company_id.in_(sub))
-        else:
-            q = q.filter(~NeonJob.company_id.in_(sub))
-
-    total = q.count()
-    jobs = q.order_by(NeonJob.scraped_at.desc()).offset(offset).limit(limit).all()
-
-    results = []
-    for job in jobs:
-        contacts = [
-            {"email": c.email, "name": c.name, "title": c.title, "confidence": c.confidence}
-            for c in (job.company.contacts if job.company else [])
-        ]
-        results.append(JobOut(
-            id=job.id,
-            company_name=job.company.name if job.company else "",
-            company_domain=job.company.domain if job.company else None,
-            source=job.source,
-            title=job.title,
-            url=job.url,
-            location=job.location,
-            role_key=job.role_key,
-            match_confidence=job.match_confidence,
-            posted_at=job.posted_at,
-            contacts=contacts,
-        ))
-
-    return {"total": total, "jobs": results}
-
-
-@app.get("/scraped-jobs/no-email")
-def list_jobs_no_email(
-    limit: int = 100,
-    offset: int = 0,
-    ndb: Session = Depends(_get_neon_db),
-):
-    companies_with_contacts = ndb.query(NeonContact.company_id).distinct()
-    q = (
-        ndb.query(NeonJob)
-        .join(NeonCompany)
-        .filter(~NeonJob.company_id.in_(companies_with_contacts))
-    )
-    total = q.count()
-    jobs = q.order_by(NeonJob.scraped_at.desc()).offset(offset).limit(limit).all()
-
-    results = []
-    for job in jobs:
-        results.append(JobOut(
-            id=job.id,
-            company_name=job.company.name if job.company else "",
-            company_domain=job.company.domain if job.company else None,
-            source=job.source,
-            title=job.title,
-            url=job.url,
-            location=job.location,
-            role_key=job.role_key,
-            match_confidence=job.match_confidence,
-            posted_at=job.posted_at,
-            contacts=[],
-        ))
-
-    return {"total": total, "jobs": results}
-
-
-@app.get("/scraped-jobs/sources")
-def list_sources(ndb: Session = Depends(_get_neon_db)):
-    rows = ndb.query(NeonJob.source).distinct().all()
-    return [r[0] for r in rows if r[0]]
-
-
-@app.post("/scraped-jobs/{job_id}/queue")
-def queue_from_scraped_job(
-    job_id: int,
-    body: QueueFromJobRequest,
-    ndb: Session = Depends(_get_neon_db),
-    db: Session = Depends(_get_db),
-):
-    job = ndb.get(NeonJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    company = job.company
-
-    record = Record(
-        to_email=body.contact_email,
-        cc_emails="",
-        hr_name=body.hr_name,
-        company_name=company.name if company else "",
-        role_key=body.role_key or job.role_key or "",
-        message_type=body.message_type,
-        custom_subject="",
-        custom_body="",
-    )
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-
-    return {"id": record.id, "status": "queued"}
-
-
-@app.post("/scraped-jobs/{job_id}/add-contact")
-def add_contact_to_job(
-    job_id: int,
-    body: AddContactRequest,
-    ndb: Session = Depends(_get_neon_db),
-):
-    job = ndb.get(NeonJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    contact = NeonContact(
-        company_id=job.company_id,
-        email=body.email,
-        name=body.name,
-        title=body.title,
-        confidence=1.0,
-        source="manual",
-        verified=False,
-    )
-    ndb.add(contact)
-    ndb.commit()
-    ndb.refresh(contact)
-
-    return {"id": contact.id, "email": contact.email, "company_id": contact.company_id}
-
-
-@app.get("/sent-companies")
-def list_sent_companies(
-    limit: int = 200,
-    offset: int = 0,
-    ndb: Session = Depends(_get_neon_db),
-):
-    q = ndb.query(SentCompany).order_by(SentCompany.sent_at.desc())
-    total = q.count()
-    rows = q.offset(offset).limit(limit).all()
-    return {
-        "total": total,
-        "companies": [
-            {
-                "id": r.id,
-                "company_name": r.company_name,
-                "email_used": r.email_used,
-                "sent_at": r.sent_at.isoformat() if r.sent_at else None,
-                "sent_via": r.sent_via,
-                "month_key": r.month_key,
-            }
-            for r in rows
-        ],
-    }
-
-
-@app.post("/jobs/{job_id}/mark-applied")
-def mark_job_applied(job_id: int, ndb: Session = Depends(_get_neon_db)):
-    """Mark a job as manually applied — saves to sent history and hides from queues."""
-    job = ndb.get(NeonJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    company_name = job.company.name if job.company else ""
-    if not company_name:
-        raise HTTPException(status_code=400, detail="Job has no associated company")
-
-    existing = ndb.query(SentCompany).filter(
-        SentCompany.company_name == company_name.lower().strip(),
-    ).first()
-
-    if not existing:
-        ndb.add(SentCompany(
-            company_name=company_name.lower().strip(),
-            email_used="manual",
-            sent_via="manual_apply",
-            month_key=datetime.now().strftime("%Y-%m"),
-        ))
-        ndb.commit()
-
-    return {"detail": f"Marked {company_name} as applied"}
-
-
-@app.get("/manual-apply-jobs")
-def list_manual_apply_jobs(
-    limit: int = 200,
-    offset: int = 0,
-    ndb: Session = Depends(_get_neon_db),
-):
-    from sqlalchemy import func as sa_func
-    sent_sub = ndb.query(SentCompany.company_name).distinct()
-    q = (
-        ndb.query(NeonJob)
-        .join(NeonCompany)
-        .filter(NeonJob.needs_manual_apply == True)
-        .filter(~sa_func.lower(sa_func.trim(NeonCompany.name)).in_(sent_sub))
-        .order_by(NeonJob.scraped_at.desc())
-    )
-    total = q.count()
-    jobs = q.offset(offset).limit(limit).all()
-
-    results = []
-    for job in jobs:
-        results.append({
-            "id": job.id,
-            "company_name": job.company.name if job.company else "",
-            "company_url": job.company.url if job.company else "",
-            "title": job.title,
-            "url": job.url,
-            "location": job.location,
-            "role_key": job.role_key,
-        })
-
-    return {"total": total, "jobs": results}
-
-
-@app.post("/career-applications/{app_id}/mark-applied")
-def mark_career_app_applied(app_id: int, ndb: Session = Depends(_get_neon_db)):
-    """Mark a failed/captcha-blocked career application as manually applied."""
-    app_row = ndb.query(CareerApplication).filter(CareerApplication.id == app_id).first()
-    if not app_row:
-        raise HTTPException(status_code=404, detail="Application not found")
-
-    app_row.status = "manually_applied"
-
-    company_name = (app_row.company_name or "").lower().strip()
-    if company_name:
-        existing = ndb.query(SentCompany).filter(
-            SentCompany.company_name == company_name,
-        ).first()
-        if not existing:
-            ndb.add(SentCompany(
-                company_name=company_name,
-                email_used="manual",
-                sent_via="manual_apply",
-                month_key=datetime.now().strftime("%Y-%m"),
-            ))
-
-    ndb.commit()
-    return {"detail": f"Marked {app_row.company_name} as manually applied"}
-
-
-@app.get("/career-applications")
-def list_career_applications(
-    status: str | None = None,
-    limit: int = 200,
-    offset: int = 0,
-    ndb: Session = Depends(_get_neon_db),
-):
-    q = ndb.query(CareerApplication).order_by(CareerApplication.applied_at.desc())
-    if status:
-        q = q.filter(CareerApplication.status == status)
-    total = q.count()
-    rows = q.offset(offset).limit(limit).all()
-
-    return {
-        "total": total,
-        "applications": [
-            {
-                "id": r.id,
-                "company_name": r.company_name,
-                "job_title": r.job_title,
-                "job_url": r.job_url,
-                "ats_type": r.ats_type,
-                "status": r.status,
-                "fields_filled": r.fields_filled,
-                "error": r.error,
-                "applied_at": r.applied_at.isoformat() if r.applied_at else None,
-            }
-            for r in rows
-        ],
-    }
-
-
-@app.post("/clear-monthly")
-def clear_monthly_scraped_data(ndb: Session = Depends(_get_neon_db)):
-    apps_del = ndb.query(Application).delete()
-    contacts_del = ndb.query(NeonContact).delete()
-    jobs_del = ndb.query(NeonJob).delete()
-    companies_del = ndb.query(NeonCompany).delete()
-    ndb.commit()
-    return {
-        "detail": f"Cleared {companies_del} companies, {jobs_del} jobs, {contacts_del} contacts, {apps_del} applications. Sent history preserved.",
-    }
-
-
-@app.delete("/history")
-def clear_history(ndb: Session = Depends(_get_neon_db)):
-    """Clear all application history (sent_companies table)."""
-    deleted = ndb.query(SentCompany).delete()
-    ndb.commit()
-    return {"detail": f"Cleared {deleted} history entries."}
-
-
-@app.delete("/clear-all")
-def clear_all_data(ndb: Session = Depends(_get_neon_db), db: Session = Depends(_get_db)):
-    """Clear everything: scraped jobs + history + email queue."""
-    ca_del = ndb.query(CareerApplication).delete()
-    apps_del = ndb.query(Application).delete()
-    contacts_del = ndb.query(NeonContact).delete()
-    jobs_del = ndb.query(NeonJob).delete()
-    companies_del = ndb.query(NeonCompany).delete()
-    sent_del = ndb.query(SentCompany).delete()
-    ndb.commit()
-    queue_del = db.query(Record).delete()
-    db.commit()
-    return {
-        "detail": f"Cleared {companies_del} companies, {jobs_del} jobs, {sent_del} history entries, {queue_del} queued records.",
-    }

@@ -13,7 +13,7 @@ class Record(Base):
     hr_name = Column(String, nullable=False, default="Hiring Manager")
     company_name = Column(String, nullable=False, default="")
     role_key = Column(String, nullable=False, default="")
-    message_type = Column(String, nullable=False, default="job_apply")
+    experience_years = Column(Integer, nullable=False, default=4)
     custom_subject = Column(String, nullable=False, default="")
     custom_body = Column(Text, nullable=False, default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

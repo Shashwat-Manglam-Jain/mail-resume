@@ -19,7 +19,7 @@ if neon_url:
     config.set_main_option("sqlalchemy.url", neon_url)
 
 from database import NeonBase
-from neon_models import Company, Job, Contact, Application, SentCompany, CareerApplication
+import neon_models  # noqa: F401 — registers models with NeonBase.metadata
 
 target_metadata = NeonBase.metadata
 

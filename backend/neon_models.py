@@ -1,112 +1,98 @@
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from database import NeonBase
 
 
-class Company(NeonBase):
-    __tablename__ = "companies"
+class Profile(NeonBase):
+    __tablename__ = "profiles"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False, unique=True)
-    domain = Column(String(255))
-    url = Column(String(500))
+    name = Column(String(255), nullable=False, default="")
+    email = Column(String(255), nullable=False, default="")
+    phone = Column(String(100), nullable=False, default="")
+    location = Column(String(255), nullable=False, default="")
+    linkedin = Column(String(500), nullable=False, default="")
+    github = Column(String(500), nullable=False, default="")
+    portfolio = Column(String(500), nullable=False, default="")
+    education = Column(String(500), nullable=False, default="")
+    graduation_year = Column(String(50), nullable=False, default="")
+    experience_years = Column(String(50), nullable=False, default="")
+    company_1_name = Column(String(255), nullable=False, default="")
+    company_1_role = Column(String(255), nullable=False, default="")
+    company_1_location = Column(String(255), nullable=False, default="")
+    company_1_duration = Column(String(255), nullable=False, default="")
+    company_2_name = Column(String(255), nullable=False, default="")
+    company_2_role = Column(String(255), nullable=False, default="")
+    company_2_location = Column(String(255), nullable=False, default="")
+    company_2_duration = Column(String(255), nullable=False, default="")
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Role(NeonBase):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(100), unique=True, nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    previous_title = Column(String(255), nullable=False, default="")
+    summary = Column(Text, nullable=False, default="")
+    coursework = Column(Text, nullable=False, default="")
+    is_active = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    jobs = relationship("Job", back_populates="company")
-    contacts = relationship("Contact", back_populates="company")
-
-
-class Job(NeonBase):
-    __tablename__ = "jobs"
-    __table_args__ = (
-        UniqueConstraint("source", "source_id", name="jobs_source_source_id_key"),
-    )
-
-    id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"))
-    source = Column(String(50), nullable=False)
-    source_id = Column(String(255))
-    title = Column(String(500), nullable=False)
-    url = Column(String(1000))
-    description = Column(Text)
-    tags = Column(Text)
-    location = Column(String(255))
-    salary_min = Column(Integer)
-    salary_max = Column(Integer)
-    role_key = Column(String(50))
-    match_confidence = Column(Float)
-    posted_at = Column(String(100))
-    scraped_at = Column(DateTime, server_default=func.now())
-    needs_manual_apply = Column(Boolean, default=False)
-
-    company = relationship("Company", back_populates="jobs")
-    applications = relationship("Application", back_populates="job")
+    skills = relationship("RoleSkill", back_populates="role", cascade="all, delete-orphan", order_by="RoleSkill.sort_order")
+    experiences = relationship("RoleExperience", back_populates="role", cascade="all, delete-orphan", order_by="RoleExperience.position_index")
+    achievements = relationship("RoleAchievement", back_populates="role", cascade="all, delete-orphan", order_by="RoleAchievement.sort_order")
+    focus_areas = relationship("RoleFocusArea", back_populates="role", cascade="all, delete-orphan", order_by="RoleFocusArea.sort_order")
 
 
-class Contact(NeonBase):
-    __tablename__ = "contacts"
-    __table_args__ = (
-        UniqueConstraint("email", "company_id", name="contacts_email_company_id_key"),
-    )
+class RoleSkill(NeonBase):
+    __tablename__ = "role_skills"
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"))
-    email = Column(String(255), nullable=False)
-    name = Column(String(255), default="")
-    title = Column(String(255), default="")
-    confidence = Column(Float, default=0)
-    source = Column(String(100), default="")
-    verified = Column(Boolean, default=False)
-    discovered_at = Column(DateTime, server_default=func.now())
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    category = Column(String(100), nullable=False)
+    skills = Column(JSON, nullable=False, default=list)
+    sort_order = Column(Integer, nullable=False, default=0)
 
-    company = relationship("Company", back_populates="contacts")
-    applications = relationship("Application", back_populates="contact")
+    role = relationship("Role", back_populates="skills")
 
 
-class Application(NeonBase):
-    __tablename__ = "applications"
+class RoleExperience(NeonBase):
+    __tablename__ = "role_experiences"
 
     id = Column(Integer, primary_key=True)
-    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"))
-    contact_id = Column(Integer, ForeignKey("contacts.id", ondelete="SET NULL"))
-    status = Column(String(50), default="pending")
-    sent_at = Column(DateTime)
-    sent_via = Column(String(255))
-    error = Column(Text)
-    created_at = Column(DateTime, server_default=func.now())
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    position_index = Column(Integer, nullable=False, default=0)
+    bullets = Column(JSON, nullable=False, default=list)
+    client_name = Column(String(255), nullable=True, default="")
+    client_location = Column(String(255), nullable=True, default="")
+    min_years = Column(Integer, nullable=True, default=1)
 
-    job = relationship("Job", back_populates="applications")
-    contact = relationship("Contact", back_populates="applications")
+    role = relationship("Role", back_populates="experiences")
 
 
-class SentCompany(NeonBase):
-    __tablename__ = "sent_companies"
-    __table_args__ = (
-        UniqueConstraint("company_name", "email_used", name="sent_companies_name_email_key"),
-    )
+class RoleAchievement(NeonBase):
+    __tablename__ = "role_achievements"
 
     id = Column(Integer, primary_key=True)
-    company_name = Column(String(255), nullable=False)
-    email_used = Column(String(255), nullable=False)
-    sent_at = Column(DateTime, server_default=func.now())
-    sent_via = Column(String(255), default="")
-    month_key = Column(String(7), default="")
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    text = Column(Text, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    role = relationship("Role", back_populates="achievements")
 
 
-class CareerApplication(NeonBase):
-    __tablename__ = "career_applications"
-    __table_args__ = (
-        UniqueConstraint("company_name", "job_url", name="career_apps_company_url_key"),
-    )
+class RoleFocusArea(NeonBase):
+    __tablename__ = "role_focus_areas"
 
     id = Column(Integer, primary_key=True)
-    company_name = Column(String(255), nullable=False)
-    job_title = Column(String(500), default="")
-    job_url = Column(String(1000), nullable=False)
-    ats_type = Column(String(50), default="generic")
-    status = Column(String(50), default="pending")
-    fields_filled = Column(Integer, default=0)
-    error = Column(Text, default="")
-    applied_at = Column(DateTime, server_default=func.now())
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    area = Column(String(500), nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    role = relationship("Role", back_populates="focus_areas")

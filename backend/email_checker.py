@@ -5,6 +5,7 @@ import smtplib
 import logging
 import random
 import string
+from typing import Dict, List, Optional, Tuple
 import dns.resolver
 
 logger = logging.getLogger(__name__)
@@ -71,12 +72,12 @@ _FREE_PROVIDERS = {
     "mail.com", "email.com",
 }
 
-_mx_cache: dict[str, list[str] | None] = {}
-_vrfy_cache: dict[str, bool | None] = {}
-_catchall_cache: dict[str, bool | None] = {}
+_mx_cache: Dict[str, Optional[List[str]]] = {}
+_vrfy_cache: Dict[str, Optional[bool]] = {}
+_catchall_cache: Dict[str, Optional[bool]] = {}
 
 
-def validate_syntax(email: str) -> tuple[bool, str]:
+def validate_syntax(email: str) -> Tuple[bool, str]:
     if not email or not isinstance(email, str):
         return False, "empty email"
     email = email.strip().lower()
@@ -99,7 +100,7 @@ def validate_syntax(email: str) -> tuple[bool, str]:
     return True, "ok"
 
 
-def check_typo(email: str) -> tuple[bool, str, str]:
+def check_typo(email: str) -> Tuple[bool, str, str]:
     """Check for common domain typos. Returns (has_typo, suggestion, detail)."""
     local, domain = email.strip().lower().rsplit("@", 1)
     if domain in _DOMAIN_TYPOS:
@@ -114,14 +115,14 @@ def check_typo(email: str) -> tuple[bool, str, str]:
     return False, email, "ok"
 
 
-def check_disposable(email: str) -> tuple[bool, str]:
+def check_disposable(email: str) -> Tuple[bool, str]:
     domain = email.strip().lower().rsplit("@", 1)[-1]
     if domain in _DISPOSABLE_DOMAINS:
         return False, f"disposable domain: {domain}"
     return True, "ok"
 
 
-def check_role_address(email: str) -> tuple[bool, str]:
+def check_role_address(email: str) -> Tuple[bool, str]:
     local = email.strip().lower().rsplit("@", 1)[0]
     for prefix in _ROLE_PREFIXES:
         if local == prefix or local.startswith(prefix + ".") or local.startswith(prefix + "+"):
@@ -129,7 +130,7 @@ def check_role_address(email: str) -> tuple[bool, str]:
     return True, "ok"
 
 
-def check_mx(domain: str) -> tuple[bool, str, list[str]]:
+def check_mx(domain: str) -> Tuple[bool, str, List[str]]:
     if domain in _mx_cache:
         records = _mx_cache[domain]
         if records:
@@ -160,7 +161,7 @@ def check_mx(domain: str) -> tuple[bool, str, list[str]]:
         return False, f"DNS error: {e}", []
 
 
-def check_dns_health(domain: str) -> tuple[bool, str]:
+def check_dns_health(domain: str) -> Tuple[bool, str]:
     """Check if domain has healthy DNS (A/AAAA records resolve)."""
     try:
         dns.resolver.resolve(domain, "A")
@@ -173,7 +174,7 @@ def check_dns_health(domain: str) -> tuple[bool, str]:
             return False, "domain has no A/AAAA records"
 
 
-def _smtp_connect(host: str, port: int, timeout: int = 10) -> smtplib.SMTP | None:
+def _smtp_connect(host: str, port: int, timeout: int = 10) -> Optional[smtplib.SMTP]:
     """Try to open an SMTP connection on the given port."""
     try:
         if port == 465:
@@ -202,7 +203,7 @@ def _smtp_connect(host: str, port: int, timeout: int = 10) -> smtplib.SMTP | Non
         return None
 
 
-def _probe_rcpt(smtp: smtplib.SMTP, from_email: str, to_email: str) -> tuple[int, str]:
+def _probe_rcpt(smtp: smtplib.SMTP, from_email: str, to_email: str) -> Tuple[int, str]:
     """Send MAIL FROM + RCPT TO and return (code, message)."""
     try:
         code, _ = smtp.mail(from_email)
@@ -217,8 +218,8 @@ def _probe_rcpt(smtp: smtplib.SMTP, from_email: str, to_email: str) -> tuple[int
         return -1, str(e)
 
 
-def detect_catchall(domain: str, mx_hosts: list[str], from_email: str = "",
-                    timeout: int = 10) -> bool | None:
+def detect_catchall(domain: str, mx_hosts: List[str], from_email: str = "",
+                    timeout: int = 10) -> Optional[bool]:
     """
     Detect if a domain is catch-all (accepts any address).
     Returns True if catch-all, False if not, None if can't determine.
@@ -264,8 +265,8 @@ def detect_catchall(domain: str, mx_hosts: list[str], from_email: str = "",
     return None
 
 
-def verify_smtp_rcpt(email: str, mx_hosts: list[str], from_email: str = "",
-                     timeout: int = 10) -> tuple[bool, str]:
+def verify_smtp_rcpt(email: str, mx_hosts: List[str], from_email: str = "",
+                     timeout: int = 10) -> Tuple[bool, str]:
     cache_key = email.strip().lower()
     if cache_key in _vrfy_cache:
         cached = _vrfy_cache[cache_key]

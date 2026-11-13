@@ -45,6 +45,7 @@ import logging
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
+from typing import List, Optional, Tuple
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -140,7 +141,7 @@ class RecordOut(BaseModel):
     experience_years: int = 4
     custom_subject: str
     custom_body: str
-    created_at: datetime | None = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -260,7 +261,7 @@ def _compose_message(hr_name: str, company_name: str,
                      role_key: str, custom_subject: str = "",
                      custom_body: str = "",
                      experience_years: int = 4,
-                     channel: str = "email") -> tuple[str, str]:
+                     channel: str = "email") -> Tuple[str, str]:
     if custom_subject and custom_body:
         return custom_subject, custom_body
 
@@ -286,13 +287,13 @@ def _compose_message(hr_name: str, company_name: str,
     return subject, body
 
 
-def _parse_cc_emails(cc_string: str) -> list[str]:
+def _parse_cc_emails(cc_string: str) -> List[str]:
     if not cc_string or not cc_string.strip():
         return []
     return [e.strip().lower() for e in cc_string.split(",") if e.strip()]
 
 
-def _validate_and_filter_cc(cc_list: list[str], from_email: str) -> tuple[list[str], list[dict]]:
+def _validate_and_filter_cc(cc_list: List[str], from_email: str) -> Tuple[List[str], List[dict]]:
     valid = []
     skipped = []
     for cc in cc_list:
@@ -349,7 +350,7 @@ def _get_resume_for_send(role_key: str, experience_years: int = 4) -> bytes:
 
 def _send_email(to_email: str, subject: str, body: str,
                 pdf_bytes: bytes, pdf_filename: str,
-                cc_emails: list[str] | None = None):
+                cc_emails: Optional[List[str]] = None):
     host, port, user, password, sender = _get_smtp_settings()
 
     msg = EmailMessage()
@@ -702,7 +703,7 @@ def download_resume_latex(role_key: str, experience_years: int = 4,
 _TECTONIC_DIR = Path(__file__).parent / "bin"
 
 
-def _find_latex_compiler() -> tuple[str, str]:
+def _find_latex_compiler() -> Tuple[str, str]:
     """Find a LaTeX compiler. Auto-downloads tectonic if none found."""
     import shutil as _shutil
 
@@ -1110,7 +1111,7 @@ async def send_direct(
     experience_years: int = Form(4),
     custom_subject: str = Form(""),
     custom_body: str = Form(""),
-    resume_file: UploadFile | None = File(None),
+    resume_file: Optional[UploadFile] = File(None),
 ):
     to_email = to_email.strip()
     if not to_email:

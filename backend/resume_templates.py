@@ -316,32 +316,6 @@ ROLE_PROJECTS = {
             ],
         },
     ],
-    "seo_digital_marketing": [
-        {
-            "name": "SEO Monitoring & Ranking Tracker",
-            "tech": "Python, Search Console API, PostgreSQL, React",
-            "bullets": [
-                "Automated tool tracking keyword rankings, crawl errors, and backlink health across 500+ pages with daily monitoring.",
-                "Built alerting system for ranking drops, broken links, and Core Web Vitals regressions before organic traffic is impacted.",
-            ],
-        },
-        {
-            "name": "Marketing Analytics Dashboard",
-            "tech": "Python, GA4 API, Google Ads API, React, PostgreSQL",
-            "bullets": [
-                "Unified marketing dashboard pulling data from GA4, Google Ads, Facebook Ads, and HubSpot CRM for cross-channel attribution.",
-                "Automated weekly reporting that replaced 2 days of manual work with scheduled data pulls and report generation.",
-            ],
-        },
-        {
-            "name": "Landing Page A/B Testing Platform",
-            "tech": "Next.js, Python, PostgreSQL, GA4",
-            "bullets": [
-                "A/B testing framework for landing pages with traffic splitting, conversion tracking, and statistical significance calculation.",
-                "Managed 50+ experiments improving conversion rates by average 25% across lead generation and e-commerce pages.",
-            ],
-        },
-    ],
 }
 
 

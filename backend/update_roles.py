@@ -14,10 +14,24 @@ from neon_models import Role, RoleSkill, RoleExperience
 
 CLIENTS = [
     {"name": "Spreetail", "location": "US", "min_years": 1, "pos": 0},
-    {"name": "Meridian Health Group", "location": "UK", "min_years": 3, "pos": 1},
-    {"name": "AutoVerse GmbH", "location": "Germany", "min_years": 5, "pos": 2},
-    {"name": "Apex Financial Corp", "location": "US", "min_years": 7, "pos": 3},
-    {"name": "NordTech Solutions", "location": "Netherlands", "min_years": 9, "pos": 4},
+    {"name": "Barclays", "location": "UK", "min_years": 1, "pos": 1},
+    {"name": "Meridian Health Group", "location": "UK", "min_years": 3, "pos": 2},
+    {"name": "AutoVerse GmbH", "location": "Germany", "min_years": 5, "pos": 3},
+    {"name": "Apex Financial Corp", "location": "US", "min_years": 7, "pos": 4},
+    {"name": "NordTech Solutions", "location": "Netherlands", "min_years": 9, "pos": 5},
+]
+
+SHARED_SPREETAIL_BULLETS = [
+    "Built ETL pipelines to pull shipment and claims data from OnTrac carrier APIs, transform and validate it in PySpark, and load into Snowflake, orchestrated on a schedule with Airflow. The claims automation queries this warehouse to auto-file for damaged and lost packages -- recovering over $2M per year in previously unclaimed revenue.",
+    "Designed the lost-in-transit data pipeline that ingests ~50K package events monthly into Snowflake, runs PySpark jobs to flag shipments breaching delivery SLAs, and kicks off carrier investigations and refund claims automatically. Cut resolution time by 60%.",
+    "Wrote the email automation service that parses incoming operational emails, classifies them, pulls out structured fields into Snowflake, and creates support tickets routed to the right team. Took average response time from 4 hours down to 15 minutes.",
+    "Built a React dashboard on top of Snowflake the ops team uses daily to track claim statuses, monitor pipeline runs and data freshness, and spot bottlenecks across 5+ active automation workflows.",
+]
+
+SHARED_BARCLAYS_BULLETS = [
+    "Built Ultron to automate security compliance across Barclays' firewalls, routers, and switches -- millions of devices that previously required manual access requests and hands-on remediation for every security issue.",
+    "Wrote Ansible playbooks that handle the full workflow end-to-end -- access request, security assessment, issue remediation, and config update. Cut remediation time from hours to minutes per device.",
+    "Built a centralized dashboard where the team tracks every device's security status, pending remediations, and fleet-wide compliance metrics in real time.",
 ]
 
 ROLE_DATA = {
@@ -595,7 +609,12 @@ def update_roles():
             db.flush()
             for client_meta in CLIENTS:
                 cname = client_meta["name"]
-                bullets = data["clients"].get(cname, [])
+                if cname == "Spreetail":
+                    bullets = SHARED_SPREETAIL_BULLETS
+                elif cname == "Barclays":
+                    bullets = SHARED_BARCLAYS_BULLETS
+                else:
+                    bullets = data["clients"].get(cname, [])
                 if not bullets:
                     continue
                 db.add(RoleExperience(

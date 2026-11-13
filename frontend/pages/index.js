@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -41,6 +41,10 @@ export default function Home() {
   const [newRoleForm, setNewRoleForm] = useState({ key: "", title: "" });
   const [showNewRole, setShowNewRole] = useState(false);
   const [builderExpYears, setBuilderExpYears] = useState(4);
+  const [channel, setChannel] = useState("email");
+  const [variation, setVariation] = useState({ current: 0, total: 0 });
+  const [directSending, setDirectSending] = useState(false);
+  const autoLoadRef = useRef(null);
 
   const hasDbRoles = roles.length > 0;
 
@@ -54,7 +58,11 @@ export default function Home() {
     fetch(`${API}/roles`).then(r => r.ok ? r.json() : []).then(data => {
       const list = Array.isArray(data) ? data : [];
       setRoles(list);
-      if (list.length) setForm(f => ({ ...f, role_key: f.role_key || list[0].key }));
+      const defaultRole = list.find(r => r.key === "python_developer") || list[0];
+      if (defaultRole) {
+        setForm(f => ({ ...f, role_key: f.role_key || defaultRole.key, role_title: f.role_title || defaultRole.title }));
+        autoLoadTemplate(defaultRole.key, "email");
+      }
     }).catch(() => {});
     fetchRecords();
   }, []);
@@ -73,27 +81,32 @@ export default function Home() {
     }).catch(() => setRoleSkills([]));
   }
 
-  async function loadTemplate() {
-    setLoadingPreview(true);
-    try {
-      const r = await fetch(`${API}/message-preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role_key: form.role_key,
-          role_title: form.role_title,
-          hr_name: form.hr_name,
-          company_name: form.company_name,
-          experience_years: form.experience_years || 4,
-        }),
-      });
-      if (r.ok) {
-        const data = await r.json();
-        setForm(f => ({ ...f, custom_subject: data.subject, custom_body: data.body }));
-        showFlash("Template loaded — edit as needed.");
-      }
-    } catch {}
-    finally { setLoadingPreview(false); }
+  function autoLoadTemplate(roleKey, chan) {
+    if (!roleKey) return;
+    if (autoLoadRef.current) clearTimeout(autoLoadRef.current);
+    autoLoadRef.current = setTimeout(async () => {
+      setLoadingPreview(true);
+      try {
+        const r = await fetch(`${API}/message-preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role_key: roleKey,
+            role_title: form.role_title,
+            hr_name: form.hr_name,
+            company_name: form.company_name,
+            experience_years: form.experience_years || 4,
+            channel: chan || "email",
+          }),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          setForm(f => ({ ...f, custom_subject: data.subject, custom_body: data.body }));
+          if (data.variation) setVariation({ current: data.variation, total: data.total_variations });
+        }
+      } catch {}
+      finally { setLoadingPreview(false); }
+    }, 300);
   }
 
   async function validateEmail(email) {
@@ -111,9 +124,14 @@ export default function Home() {
       fetchSkills(value);
       const role = roles.find(r => r.key === value);
       if (role) setForm(f => ({ ...f, [field]: value, role_title: role.title }));
+      autoLoadTemplate(value, channel);
     }
     if (field === "to_email") setValidation(null);
   }
+
+  useEffect(() => {
+    if (form.role_key) autoLoadTemplate(form.role_key, channel);
+  }, [channel]);
 
   function cancelEdit() {
     setEditingId(null);
@@ -141,10 +159,42 @@ export default function Home() {
     if (r.ok) { setEditingCC(null); setCcDraft(""); fetchRecords(); showFlash("CC updated."); }
   }
 
-  async function submitForm(e) {
+  async function sendDirect(e) {
     e.preventDefault();
     if (!form.to_email) { showFlash("Please enter a recipient email.", true); return; }
-    if (!form.role_key && !form.role_title) { showFlash("Please enter a role title or select a role.", true); return; }
+    if (!form.role_key && !form.role_title) { showFlash("Please select a role.", true); return; }
+    if (!form.custom_subject || !form.custom_body) { showFlash("Please wait for the template to load.", true); return; }
+    setDirectSending(true);
+    try {
+      const payload = {
+        to_email: form.to_email,
+        cc_emails: form.cc_emails,
+        hr_name: form.hr_name,
+        company_name: form.company_name,
+        role_key: form.role_key || form.role_title.toLowerCase().replace(/\s+/g, "_"),
+        experience_years: form.experience_years || 4,
+        custom_subject: form.custom_subject,
+        custom_body: form.custom_body,
+      };
+      const r = await fetch(`${API}/send-direct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(result.detail || "Send failed.");
+      showFlash(`Email sent to ${form.to_email}!`);
+      setForm(f => ({ ...EMPTY_FORM, role_key: f.role_key, role_title: f.role_title }));
+      setValidation(null); setShowCC(false);
+      autoLoadTemplate(form.role_key, channel);
+    } catch (err) { showFlash(err.message, true); }
+    finally { setDirectSending(false); }
+  }
+
+  async function submitToQueue(e) {
+    e.preventDefault();
+    if (!form.to_email) { showFlash("Please enter a recipient email.", true); return; }
+    if (!form.role_key && !form.role_title) { showFlash("Please select a role.", true); return; }
     setQueueLoading(true);
     try {
       const payload = {
@@ -522,7 +572,7 @@ export default function Home() {
                 <p className="subtitle">
                   {editingId !== null
                     ? "Update fields below, then save."
-                    : "Fill in the details and click Load Template to generate the email."}
+                    : "Fill in the details — template auto-fills when you select a role."}
                 </p>
               </div>
               {editingId !== null && (
@@ -537,7 +587,7 @@ export default function Home() {
               </div>
             )}
 
-            <form onSubmit={submitForm}>
+            <form onSubmit={sendDirect}>
               <div className="form-grid">
                 <label>
                   To Email *
@@ -634,23 +684,45 @@ export default function Home() {
               <div className="message-section">
                 <div className="message-section-header">
                   <div>
-                    <label style={{ marginBottom: 0 }}>Email Message</label>
-                    <p className="subtitle" style={{ marginBottom: 0 }}>Click &quot;Load Template&quot; to fill with the default template, then edit freely.</p>
+                    <label style={{ marginBottom: 0 }}>Message Template</label>
+                    <p className="subtitle" style={{ marginBottom: 0 }}>
+                      Templates auto-fill when you select a role.
+                      {variation.total > 1 && <span className="variation-badge">Template {variation.current}/{variation.total}</span>}
+                    </p>
                   </div>
-                  <button type="button" className="btn-secondary btn-sm" onClick={loadTemplate} disabled={loadingPreview}>
-                    {loadingPreview ? <><span className="spinner" />Loading</> : "Load Template"}
-                  </button>
+                  <div className="channel-toggle">
+                    <button type="button" className={`channel-btn${channel === "email" ? " active" : ""}`} onClick={() => setChannel("email")}>Email</button>
+                    <button type="button" className={`channel-btn${channel === "linkedin" ? " active" : ""}`} onClick={() => setChannel("linkedin")}>LinkedIn</button>
+                  </div>
                 </div>
-                <label>Subject <input type="text" value={form.custom_subject} onChange={e => updateForm("custom_subject", e.target.value)} placeholder="Click Load Template or type your own subject" /></label>
-                <label>Body <textarea value={form.custom_body} onChange={e => updateForm("custom_body", e.target.value)} placeholder="Click Load Template or type your own body" rows={10} /></label>
+                {loadingPreview && <div className="template-loading"><span className="spinner" /> Loading template...</div>}
+                {channel === "email" && <label>Subject <input type="text" value={form.custom_subject} onChange={e => updateForm("custom_subject", e.target.value)} placeholder="Subject auto-fills with template" /></label>}
+                <label>{channel === "email" ? "Body" : "LinkedIn Message"} <textarea value={form.custom_body} onChange={e => updateForm("custom_body", e.target.value)} placeholder="Template auto-fills when you select a role" rows={channel === "linkedin" ? 6 : 10} /></label>
+                {channel === "linkedin" && (
+                  <button type="button" className="btn-copy" onClick={() => {
+                    navigator.clipboard.writeText(form.custom_body || "");
+                    showFlash("Copied to clipboard!");
+                  }}>Copy to Clipboard</button>
+                )}
               </div>
 
               <div className="actions">
-                <button className={editingId !== null ? "btn-update" : "btn-primary"} type="submit" disabled={queueLoading}>
-                  {queueLoading && <span className="spinner" />}
-                  {editingId !== null ? "Update Record" : "Add to Queue"}
-                </button>
-                {editingId !== null && <button className="btn-secondary" type="button" onClick={cancelEdit}>Cancel</button>}
+                {channel === "email" ? (
+                  <>
+                    <button type="submit" className="btn-send-direct" disabled={directSending || !form.to_email}>
+                      {directSending ? <><span className="spinner" />Sending...</> : "Send Email"}
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={submitToQueue} disabled={queueLoading || !form.to_email}>
+                      {queueLoading && <span className="spinner" />}
+                      {editingId !== null ? "Update in Queue" : "Add to Queue"}
+                    </button>
+                    {editingId !== null && <button className="btn-secondary" type="button" onClick={cancelEdit}>Cancel</button>}
+                  </>
+                ) : (
+                  <div className="linkedin-note">
+                    <p>LinkedIn messages can&apos;t be sent via email. Copy the message above and paste it on LinkedIn.</p>
+                  </div>
+                )}
               </div>
             </form>
           </div>

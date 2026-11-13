@@ -69,6 +69,7 @@ from resume_templates import (
     generate_pdf_resume,
     make_latex_resume,
 )
+from message_templates import get_message_template
 
 logger = logging.getLogger(__name__)
 
@@ -114,27 +115,6 @@ app.add_middleware(
 )
 
 
-EMAIL_SUBJECT_TEMPLATE = (
-    "{role_title} -- {your_name} ({experience_years} yrs exp)"
-)
-
-EMAIL_BODY_TEMPLATE = (
-    "{greeting}\n\n"
-    "I came across the {role_title} opening{at_company} and wanted "
-    "to reach out. I've been working with {top_skills} for about "
-    "{experience_years} years now, mostly building backend systems "
-    "and shipping production code for clients across the US and Europe.\n\n"
-    "I've attached my resume -- it covers the specifics better than "
-    "I can in an email, but the short version is that I've spent most "
-    "of my career solving real operational problems: automating manual "
-    "workflows, building data pipelines, and getting things into "
-    "production reliably.\n\n"
-    "Would love to chat if you think there's a fit. Happy to jump "
-    "on a quick call whenever works for you.\n\n"
-    "Thanks,\n"
-    "{your_name}\n"
-    "{your_email} | {your_phone}"
-)
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────
@@ -279,7 +259,8 @@ def _get_top_skills(role_key: str, count: int = 5) -> str:
 def _compose_message(hr_name: str, company_name: str,
                      role_key: str, custom_subject: str = "",
                      custom_body: str = "",
-                     experience_years: int = 4) -> tuple[str, str]:
+                     experience_years: int = 4,
+                     channel: str = "email") -> tuple[str, str]:
     if custom_subject and custom_body:
         return custom_subject, custom_body
 
@@ -299,8 +280,9 @@ def _compose_message(hr_name: str, company_name: str,
         "experience_years": str(experience_years),
     }
 
-    subject = custom_subject if custom_subject else EMAIL_SUBJECT_TEMPLATE.format(**replacements)
-    body = custom_body if custom_body else EMAIL_BODY_TEMPLATE.format(**replacements)
+    tmpl = get_message_template(role_key, channel)
+    subject = custom_subject if custom_subject else tmpl["subject"].format(**replacements)
+    body = custom_body if custom_body else tmpl["body"].format(**replacements)
     return subject, body
 
 
@@ -516,6 +498,7 @@ def message_preview(data: dict = Body(...)):
     company_name = data.get("company_name", "")
     role_title = data.get("role_title", "")
     experience_years = data.get("experience_years", 4)
+    channel = data.get("channel", "email")
 
     profile = _get_profile()
     at_company = f" at {company_name}" if company_name.strip() else ""
@@ -541,9 +524,14 @@ def message_preview(data: dict = Body(...)):
         "experience_years": str(experience_years),
     }
 
+    tmpl = get_message_template(role_key, channel)
+
     return {
-        "subject": EMAIL_SUBJECT_TEMPLATE.format(**replacements),
-        "body": EMAIL_BODY_TEMPLATE.format(**replacements),
+        "subject": tmpl["subject"].format(**replacements),
+        "body": tmpl["body"].format(**replacements),
+        "channel": channel,
+        "variation": tmpl.get("variation", 0),
+        "total_variations": tmpl.get("total_variations", 1),
     }
 
 
@@ -1111,5 +1099,65 @@ def send_all(db: Session = Depends(_get_db)):
 
     db.commit()
     return SendResult(sent=sent, failed=failed, errors=errors)
+
+
+@app.post("/send-direct")
+def send_direct(data: dict = Body(...)):
+    to_email = data.get("to_email", "").strip()
+    if not to_email:
+        raise HTTPException(status_code=400, detail="to_email is required")
+
+    cc_emails_str = data.get("cc_emails", "")
+    hr_name = data.get("hr_name", "")
+    company_name = data.get("company_name", "")
+    role_key = data.get("role_key", "python_developer")
+    experience_years = data.get("experience_years", 4)
+    custom_subject = data.get("custom_subject", "")
+    custom_body = data.get("custom_body", "")
+
+    profile = _get_profile()
+    from_email = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
+
+    to_result = validate_email_full(to_email, from_email, skip_smtp=True)
+    if not to_result["valid"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid email: {to_result['reason']}",
+        )
+
+    cc_list = _parse_cc_emails(cc_emails_str)
+    valid_cc, skipped_cc = _validate_and_filter_cc(cc_list, from_email)
+
+    subject, body = _compose_message(
+        hr_name, company_name, role_key,
+        custom_subject, custom_body,
+        experience_years=experience_years,
+    )
+
+    try:
+        pdf_bytes = _get_resume_for_send(role_key, experience_years)
+    except Exception:
+        pdf_bytes = _get_resume_for_send("python_developer", experience_years)
+
+    name_slug = (profile.get("name") or "Resume").replace(" ", "_")
+    custom_resume_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
+    if custom_resume_path and Path(custom_resume_path).exists():
+        pdf_filename = f"{name_slug}_Resume.pdf"
+    else:
+        role_slug = _get_role_title(role_key).replace(" ", "_")
+        pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
+
+    try:
+        _send_email(to_email, subject, body, pdf_bytes, pdf_filename,
+                    cc_emails=valid_cc)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Send failed: {exc}")
+
+    return {
+        "status": "sent",
+        "to": to_email,
+        "cc_sent": valid_cc,
+        "skipped_cc": skipped_cc,
+    }
 
 

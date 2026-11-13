@@ -469,6 +469,101 @@ ROLE_DATA = {
             ],
         },
     },
+    # ═══════════════════════════════════════════════════════════════════════════
+    "python_developer": {
+        "title": "Python Developer",
+        "summary": (
+            "Python developer with {experience_years}+ years across the full stack -- backend APIs "
+            "with Django and FastAPI, frontend dashboards in React, data pipelines with PySpark "
+            "and Snowflake, and infrastructure on AWS with Docker and Kubernetes. At Spreetail, "
+            "built pipelines processing 50K+ events monthly and automation recovering $2M+ annually. "
+            "At Barclays, automated security compliance across millions of devices with Ansible."
+        ),
+        "skills": {
+            "Languages": ["Python", "SQL", "Bash", "JavaScript"],
+            "Backend": ["FastAPI", "Django", "REST APIs", "Celery"],
+            "Frontend": ["React.js", "Next.js", "HTML5", "CSS3"],
+            "Databases": ["PostgreSQL", "Snowflake", "MongoDB", "Redis"],
+            "Data Engineering": ["PySpark", "Apache Airflow", "Kafka", "dbt", "Delta Lake"],
+            "Cloud & DevOps": ["AWS", "Docker", "Kubernetes", "Terraform", "Ansible", "CI/CD"],
+            "Tools": ["Git", "GitHub Actions", "Jenkins", "Jira", "Linux", "Postman"],
+        },
+        "clients": {
+            "Spreetail": [
+                "Spreetail is a US-based e-commerce logistics company. Their carrier claims process with OnTrac was entirely manual -- the ops team spent hours every day filing claims by hand and losing millions in unrecovered shipping costs. Built a Python pipeline that pulls claim data automatically, validates it, and files with OnTrac daily. Cut processing time by 80% and started recovering costs that were just being written off before.",
+                "The ops team was also drowning in inbound emails -- hundreds a day, all needing someone to read them, figure out what department they belonged to, and respond. Built an AI-powered email system that parses incoming messages, figures out intent, routes tickets automatically, and handles the routine stuff without a human ever touching it.",
+                "Packages kept getting lost in transit and nobody knew until a customer complained. Built an event-driven monitoring system that watches logistics endpoints in real time, tracks every item's lifecycle, and kicks off resolution steps automatically when something goes missing. Took what used to be a reactive fire drill and made it proactive.",
+                "Built a React dashboard on top of Snowflake that the ops team uses daily to track claim statuses, monitor pipeline runs and data freshness, and spot bottlenecks across 5+ active automation workflows.",
+            ],
+            "Meridian Health Group": [
+                "Meridian is a UK healthcare provider managing records for 200K+ patients. Built a Django REST API with role-based access control, audit logging, and encrypted storage for their electronic health records -- passed HIPAA compliance on the first try.",
+                "Their appointment scheduling was a mess -- double bookings, no reminders, patients not showing up. Wrote a FastAPI scheduling service with multi-provider calendars, conflict resolution, and automated reminders. No-show rates dropped 35%.",
+                "Built a React clinical dashboard that pulls vitals, lab results, and medication history from multiple data sources into one real-time view for doctors.",
+            ],
+            "AutoVerse GmbH": [
+                "AutoVerse is a German connected-car company with 50K+ vehicles across 12 EU markets. Built a high-throughput telemetry ingestion service with FastAPI and PostgreSQL that processes OBD-II data streams and triggers predictive maintenance alerts -- cut unscheduled workshop visits by 32%.",
+                "Built REST APIs for GPS tracking, maintenance scheduling, and EU compliance reporting. Added geofencing with PostGIS so fleet operators get alerted when vehicles go off-route.",
+                "Built a recall management service that cross-references VIN databases against recall bulletins, notifies owners automatically, and books workshop appointments through the dealer portal.",
+            ],
+            "Apex Financial Corp": [
+                "Apex is a US wealth management and trading firm. Built trade execution APIs with FastAPI handling 5K+ orders per minute with sub-100ms response times and full audit trails in PostgreSQL for regulatory compliance.",
+                "Portfolio managers had no self-service analytics. Built a Django backend computing VaR, Sharpe ratio, and P&L attribution across 15 years of market data, served to real-time dashboards used by 40+ PMs daily.",
+                "Automated monthly client statement generation -- trade history, fees, performance charts -- with Celery workers producing personalized PDFs for 8K+ clients on schedule.",
+            ],
+            "NordTech Solutions": [
+                "NordTech is a Dutch enterprise SaaS company serving 200+ clients. Built a configurable workflow engine with Django and Celery where clients define approval chains, document routing, and SLA escalations through JSON config -- no code changes needed.",
+                "Built a centralized API gateway in FastAPI with unified OAuth 2.0 auth, per-tenant rate limiting, and bidirectional data transformations for 15+ third-party integrations (SAP, Salesforce, Jira, Slack, Microsoft 365).",
+                "Built a real-time SLA monitoring service tracking response times, uptime, and escalation deadlines with automatic incident reports when contractual thresholds get breached.",
+            ],
+        },
+    },
+    # ═══════════════════════════════════════════════════════════════════════════
+    "seo_digital_marketing": {
+        "title": "SEO & Digital Marketing Specialist",
+        "summary": (
+            "Digital marketing specialist with a strong technical background in Python and web development. "
+            "Drives organic traffic through technical SEO, content optimization, and link building while "
+            "managing paid campaigns across Google Ads, Facebook, and Instagram. Uses GA4, Search Console, "
+            "and A/B testing for data-driven decisions. Can implement tracking, automate reporting, and "
+            "build landing pages without waiting on engineering."
+        ),
+        "skills": {
+            "SEO": ["Technical SEO", "On-Page SEO", "Off-Page SEO", "Link Building", "Schema Markup"],
+            "Paid Advertising": ["Google Ads", "Facebook Ads", "Instagram Ads", "PPC", "Retargeting"],
+            "Analytics": ["Google Analytics 4", "Search Console", "Data Studio", "A/B Testing", "Tag Manager"],
+            "Content & Social": ["Content Strategy", "Email Marketing", "Social Media Management", "Copywriting"],
+            "Technical": ["Python", "SQL", "HTML/CSS", "JavaScript", "WordPress"],
+            "Tools": ["SEMrush", "Ahrefs", "Moz", "HubSpot", "Mailchimp", "Canva"],
+        },
+        "clients": {
+            "Spreetail": [
+                "Spreetail is a US-based e-commerce logistics company. Their marketplace listings across Amazon, Walmart, and eBay had no SEO optimization -- product titles, descriptions, and backend keywords were generic. Audited and optimized 2,000+ product listings with keyword research, A+ content, and structured data. Organic marketplace traffic increased 45% within 3 months.",
+                "Ran Google Ads and Facebook campaigns for Spreetail's direct-to-consumer channel targeting high-intent keywords for home goods and outdoor products. Managed $50K+ monthly ad spend with 3.2x ROAS. Built automated reporting dashboards in Python pulling data from Google Ads API and GA4.",
+                "Their email marketing was batch-and-blast with no segmentation. Built automated email flows -- welcome series, cart abandonment, post-purchase follow-ups -- using behavioral triggers. Open rates improved from 12% to 28%, and email-attributed revenue grew 60%.",
+                "Built a Python-based SEO monitoring tool that tracks keyword rankings, crawl errors, and backlink health daily. Automated alerts for ranking drops and broken links so issues get fixed before traffic is impacted.",
+            ],
+            "Meridian Health Group": [
+                "Meridian is a UK healthcare provider. Their website was invisible on Google for key patient-facing queries (appointment booking, service pages, doctor profiles). Implemented technical SEO -- fixed crawl issues, added schema markup for medical providers, optimized Core Web Vitals. Organic traffic grew 65% in 6 months.",
+                "Ran targeted Google Ads campaigns for patient acquisition across 12 hospital locations. Built location-specific landing pages with appointment booking integration. Cost per acquisition dropped 40% while new patient registrations doubled.",
+                "Built a content marketing strategy around health topics their patient base actually searches for. Published 50+ optimized articles that now rank on page 1 for high-intent medical queries, driving 10K+ organic visits monthly.",
+            ],
+            "AutoVerse GmbH": [
+                "AutoVerse is a German connected-car company expanding into 12 EU markets. Built multilingual SEO strategy covering DE, FR, NL, and EN markets. Implemented hreflang tags, localized content, and market-specific keyword targeting. International organic traffic grew 80% year-over-year.",
+                "Managed paid campaigns across Google Ads and Facebook for fleet management product launch. Built lookalike audiences from existing fleet operator data, ran A/B tests on ad creative and landing pages. Generated 500+ qualified leads at 35% below target CPA.",
+                "Built a social media presence for AutoVerse's fleet management platform on LinkedIn and Instagram. Created a content calendar mixing product updates, fleet management tips, and customer success stories. Grew LinkedIn following from 200 to 5K+ in 8 months.",
+            ],
+            "Apex Financial Corp": [
+                "Apex is a US wealth management firm. Their advisor portal had zero organic visibility for high-value keywords like 'wealth management services' and 'portfolio advisory'. Implemented technical SEO, built topical authority through thought leadership content, and earned backlinks from financial publications. Organic lead generation increased 120%.",
+                "Managed Google Ads campaigns for high-net-worth client acquisition with strict compliance requirements. Built compliant ad copy templates, landing pages with required disclosures, and conversion tracking that satisfies SEC marketing rules. Cost per qualified lead dropped from $450 to $180.",
+                "Built automated marketing reports pulling data from GA4, Google Ads, and HubSpot CRM using Python scripts. What used to take the marketing team 2 days of manual reporting now generates automatically every Monday morning.",
+            ],
+            "NordTech Solutions": [
+                "NordTech is a Dutch enterprise SaaS company. Their product pages weren't ranking for any B2B SaaS keywords despite having a solid product. Overhauled site architecture, built comparison pages, and created bottom-of-funnel content targeting buyer-intent keywords. MQL volume from organic search tripled in 9 months.",
+                "Ran LinkedIn Ads and Google Ads campaigns for enterprise lead generation. Built account-based marketing campaigns targeting specific company lists with personalized landing pages. Pipeline from paid channels grew from $200K to $1.2M quarterly.",
+                "Implemented marketing automation with HubSpot -- lead scoring, nurture sequences, and sales handoff workflows. Connected GA4 and ad platform data to build attribution modeling that showed which channels actually drove revenue, not just clicks.",
+            ],
+        },
+    },
 }
 
 

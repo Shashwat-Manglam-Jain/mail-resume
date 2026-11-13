@@ -1310,6 +1310,119 @@ td {
   to { transform: rotate(360deg); }
 }
 
+/* ── Channel Toggle ────────────────────────────────────────────────── */
+
+.channel-toggle {
+  display: flex;
+  gap: 2px;
+  background: rgba(30, 41, 59, 0.6);
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.channel-btn {
+  background: none;
+  border: none;
+  padding: 7px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.channel-btn:hover {
+  color: #94a3b8;
+  background: rgba(51, 65, 85, 0.4);
+}
+
+.channel-btn.active {
+  color: #fff;
+  background: #6366f1;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+/* ── Send Direct Button ──────────────────────────────────────────── */
+
+.btn-send-direct {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  padding: 12px 32px;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+}
+
+.btn-send-direct:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-send-direct:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── LinkedIn Styles ─────────────────────────────────────────────── */
+
+.btn-copy {
+  background: rgba(10, 102, 194, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(10, 102, 194, 0.3);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btn-copy:hover {
+  background: rgba(10, 102, 194, 0.25);
+  border-color: rgba(10, 102, 194, 0.5);
+}
+
+.linkedin-note {
+  background: rgba(10, 102, 194, 0.08);
+  border: 1px solid rgba(10, 102, 194, 0.2);
+  border-radius: 10px;
+  padding: 14px 18px;
+  color: #60a5fa;
+  font-size: 13px;
+}
+
+.linkedin-note p { margin: 0; }
+
+/* ── Template Loading & Variation ────────────────────────────────── */
+
+.template-loading {
+  color: #818cf8;
+  font-size: 13px;
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.variation-badge {
+  display: inline-block;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-left: 8px;
+}
+
 /* ── Responsive ────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
@@ -1335,4 +1448,7 @@ td {
   .skill-row { flex-direction: column; }
   .skill-cat-input { width: 100% !important; }
   .profile-modal { max-width: 100%; max-height: 95vh; }
+  .channel-toggle { width: 100%; justify-content: center; }
+  .message-section-header { flex-direction: column; gap: 10px; }
+  .btn-send-direct { width: 100%; }
 }

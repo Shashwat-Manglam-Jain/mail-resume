@@ -24,6 +24,7 @@ from neon_models import (
 from resume_templates import get_template
 
 PYTHON_ROLE_KEYS = [
+    "python_developer",
     "ai_ml_engineer",
     "data_engineer",
     "data_scientist",
@@ -34,6 +35,7 @@ PYTHON_ROLE_KEYS = [
     "backend_engineer",
     "cloud_devops_engineer",
     "software_tester_qa",
+    "seo_digital_marketing",
 ]
 
 

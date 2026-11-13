@@ -25,5 +25,10 @@ NeonSessionLocal = None
 NeonBase = declarative_base()
 
 if NEON_DATABASE_URL:
-    neon_engine = create_engine(NEON_DATABASE_URL)
+    url = NEON_DATABASE_URL
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+    neon_engine = create_engine(url)
     NeonSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=neon_engine)

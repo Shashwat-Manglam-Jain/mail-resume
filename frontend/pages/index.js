@@ -20,16 +20,11 @@ export default function Home() {
 
   const [profile, setProfile] = useState({});
   const [roles, setRoles] = useState([]);
-  const [records, setRecords] = useState([]);
+  const [allRoles, setAllRoles] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [roleSkills, setRoleSkills] = useState([]);
-  const [queueLoading, setQueueLoading] = useState(false);
-  const [sending, setSending] = useState({});
-  const [editingId, setEditingId] = useState(null);
   const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState(null);
-  const [editingCC, setEditingCC] = useState(null);
-  const [ccDraft, setCcDraft] = useState("");
   const [showCC, setShowCC] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
@@ -41,9 +36,8 @@ export default function Home() {
   const [newRoleForm, setNewRoleForm] = useState({ key: "", title: "" });
   const [showNewRole, setShowNewRole] = useState(false);
   const [builderExpYears, setBuilderExpYears] = useState(4);
-  const [channel, setChannel] = useState("email");
-  const [variation, setVariation] = useState({ current: 0, total: 0 });
   const [directSending, setDirectSending] = useState(false);
+  const [uploadedResume, setUploadedResume] = useState(null);
   const autoLoadRef = useRef(null);
 
   const hasDbRoles = roles.length > 0;
@@ -61,18 +55,13 @@ export default function Home() {
       const defaultRole = list.find(r => r.key === "python_developer") || list[0];
       if (defaultRole) {
         setForm(f => ({ ...f, role_key: f.role_key || defaultRole.key, role_title: f.role_title || defaultRole.title }));
-        autoLoadTemplate(defaultRole.key, "email");
+        autoLoadTemplate(defaultRole.key);
       }
     }).catch(() => {});
-    fetchRecords();
+    fetch(`${API}/roles?all=true`).then(r => r.ok ? r.json() : []).then(data => {
+      setAllRoles(Array.isArray(data) ? data : []);
+    }).catch(() => {});
   }, []);
-
-  async function fetchRecords() {
-    try {
-      const r = await fetch(`${API}/records`);
-      if (r.ok) setRecords(await r.json());
-    } catch {}
-  }
 
   async function fetchSkills(roleKey) {
     if (!roleKey) { setRoleSkills([]); return; }
@@ -81,7 +70,7 @@ export default function Home() {
     }).catch(() => setRoleSkills([]));
   }
 
-  function autoLoadTemplate(roleKey, chan) {
+  function autoLoadTemplate(roleKey) {
     if (!roleKey) return;
     if (autoLoadRef.current) clearTimeout(autoLoadRef.current);
     autoLoadRef.current = setTimeout(async () => {
@@ -96,13 +85,11 @@ export default function Home() {
             hr_name: form.hr_name,
             company_name: form.company_name,
             experience_years: form.experience_years || 4,
-            channel: chan || "email",
           }),
         });
         if (r.ok) {
           const data = await r.json();
           setForm(f => ({ ...f, custom_subject: data.subject, custom_body: data.body }));
-          if (data.variation) setVariation({ current: data.variation, total: data.total_variations });
         }
       } catch {}
       finally { setLoadingPreview(false); }
@@ -124,39 +111,9 @@ export default function Home() {
       fetchSkills(value);
       const role = roles.find(r => r.key === value);
       if (role) setForm(f => ({ ...f, [field]: value, role_title: role.title }));
-      autoLoadTemplate(value, channel);
+      autoLoadTemplate(value);
     }
     if (field === "to_email") setValidation(null);
-  }
-
-  useEffect(() => {
-    if (form.role_key) autoLoadTemplate(form.role_key, channel);
-  }, [channel]);
-
-  function cancelEdit() {
-    setEditingId(null);
-    setForm({ ...EMPTY_FORM, role_key: roles.length ? roles[0].key : "", role_title: roles.length ? roles[0].title : "" });
-    setRoleSkills([]); setValidation(null); setShowCC(false);
-  }
-
-  function startEdit(record) {
-    setEditingId(record.id);
-    const role = roles.find(r => r.key === record.role_key);
-    setForm({
-      to_email: record.to_email, cc_emails: record.cc_emails || "",
-      hr_name: record.hr_name, company_name: record.company_name,
-      role_key: record.role_key, role_title: role ? role.title : record.role_key.replace(/_/g, " "),
-      experience_years: record.experience_years || 4,
-      custom_subject: record.custom_subject || "", custom_body: record.custom_body || "",
-    });
-    fetchSkills(record.role_key);
-    setValidation(null); setShowCC(!!(record.cc_emails));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function saveCC(recordId) {
-    const r = await fetch(`${API}/records/${recordId}/cc`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cc_emails: ccDraft }) });
-    if (r.ok) { setEditingCC(null); setCcDraft(""); fetchRecords(); showFlash("CC updated."); }
   }
 
   async function sendDirect(e) {
@@ -166,113 +123,39 @@ export default function Home() {
     if (!form.custom_subject || !form.custom_body) { showFlash("Please wait for the template to load.", true); return; }
     setDirectSending(true);
     try {
-      const payload = {
-        to_email: form.to_email,
-        cc_emails: form.cc_emails,
-        hr_name: form.hr_name,
-        company_name: form.company_name,
-        role_key: form.role_key || form.role_title.toLowerCase().replace(/\s+/g, "_"),
-        experience_years: form.experience_years || 4,
-        custom_subject: form.custom_subject,
-        custom_body: form.custom_body,
-      };
+      const fd = new FormData();
+      fd.append("to_email", form.to_email);
+      fd.append("cc_emails", form.cc_emails || "");
+      fd.append("hr_name", form.hr_name || "");
+      fd.append("company_name", form.company_name || "");
+      fd.append("role_key", form.role_key || form.role_title.toLowerCase().replace(/\s+/g, "_"));
+      fd.append("experience_years", String(form.experience_years || 4));
+      fd.append("custom_subject", form.custom_subject);
+      fd.append("custom_body", form.custom_body);
+      if (uploadedResume) {
+        fd.append("resume_file", uploadedResume);
+      }
       const r = await fetch(`${API}/send-direct`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: fd,
       });
       const result = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(result.detail || "Send failed.");
-      showFlash(`Email sent to ${form.to_email}!`);
+      const resumeType = result.resume === "uploaded" ? " (uploaded resume)" : " (generated resume)";
+      showFlash(`Email sent to ${form.to_email}!${resumeType}`);
       setForm(f => ({ ...EMPTY_FORM, role_key: f.role_key, role_title: f.role_title }));
       setValidation(null); setShowCC(false);
-      autoLoadTemplate(form.role_key, channel);
+      autoLoadTemplate(form.role_key);
     } catch (err) { showFlash(err.message, true); }
     finally { setDirectSending(false); }
-  }
-
-  async function submitToQueue(e) {
-    e.preventDefault();
-    if (!form.to_email) { showFlash("Please enter a recipient email.", true); return; }
-    if (!form.role_key && !form.role_title) { showFlash("Please select a role.", true); return; }
-    setQueueLoading(true);
-    try {
-      const payload = {
-        to_email: form.to_email,
-        cc_emails: form.cc_emails,
-        hr_name: form.hr_name,
-        company_name: form.company_name,
-        role_key: form.role_key || form.role_title.toLowerCase().replace(/\s+/g, "_"),
-        experience_years: form.experience_years || 4,
-        custom_subject: form.custom_subject,
-        custom_body: form.custom_body,
-      };
-      const isEdit = editingId !== null;
-      const r = await fetch(isEdit ? `${API}/records/${editingId}` : `${API}/records`, {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).detail) || "Request failed.");
-      setEditingId(null);
-      showFlash(isEdit ? "Record updated." : "Added to queue.");
-      setForm(f => ({ ...EMPTY_FORM, role_key: f.role_key, role_title: f.role_title }));
-      setValidation(null); setShowCC(false);
-      fetchRecords();
-    } catch (err) { showFlash(err.message, true); }
-    finally { setQueueLoading(false); }
-  }
-
-  async function sendOne(id) {
-    if (sending[id]) return;
-    setSending(s => ({ ...s, [id]: true }));
-    try {
-      const r = await fetch(`${API}/records/${id}/send`, { method: "POST" });
-      const result = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(result.detail || "Send failed.");
-      showFlash(result.failed > 0 ? `Failed: ${result.errors?.[0]?.error || "Unknown"}` : "Email sent!", result.failed > 0);
-    } catch (err) { showFlash(err.message, true); }
-    finally {
-      setSending(s => ({ ...s, [id]: false }));
-      fetchRecords();
-    }
-  }
-
-  async function sendAll() {
-    if (!records.length) { showFlash("No records to send.", true); return; }
-    setQueueLoading(true);
-    try {
-      const r = await fetch(`${API}/send-all`, { method: "POST" });
-      const result = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(result.detail || "Send failed.");
-      showFlash(`Done! Sent: ${result.sent}${result.failed > 0 ? `, Failed: ${result.failed}` : ""}`);
-    } catch (err) { showFlash(err.message, true); }
-    finally {
-      setQueueLoading(false);
-      fetchRecords();
-    }
-  }
-
-  async function deleteRecord(id) {
-    if (editingId === id) cancelEdit();
-    await fetch(`${API}/records/${id}`, { method: "DELETE" });
-    fetchRecords(); showFlash("Record removed.");
-  }
-
-  async function clearAllRecords() {
-    if (!confirm("Clear all queued emails?")) return;
-    cancelEdit();
-    await fetch(`${API}/records`, { method: "DELETE" });
-    fetchRecords(); showFlash("All records cleared.");
   }
 
   // ── Resume Builder ──────────────────────────────────────────────
 
   function fetchRolesList() {
-    fetch(`${API}/roles`).then(r => r.ok ? r.json() : []).then(data => {
+    fetch(`${API}/roles?all=true`).then(r => r.ok ? r.json() : []).then(data => {
       const list = Array.isArray(data) ? data : [];
-      setRoles(list);
-      if (list.length && !form.role_key) setForm(f => ({ ...f, role_key: f.role_key || list[0].key }));
+      setAllRoles(list);
     }).catch(() => {});
   }
 
@@ -539,7 +422,7 @@ export default function Home() {
     <main>
       <div className="app-header">
         <h1>Email Resume</h1>
-        <p>Compose, queue, and send job-application emails</p>
+        <p>Send job-application emails with auto-generated templates</p>
       </div>
 
       <div className="toast-container">
@@ -554,30 +437,22 @@ export default function Home() {
 
       <div className="tabs">
         <button className={`tab${tab === "queue" ? " active" : ""}`} onClick={() => setTab("queue")}>
-          Mail Queue
-          {records.length > 0 && <span className="tab-badge">{records.length}</span>}
+          Send Email
         </button>
         <button className={`tab${tab === "resume" ? " active" : ""}`} onClick={() => setTab("resume")}>
           Resume Builder
         </button>
       </div>
 
-      {/* ══════════ MAIL QUEUE ══════════ */}
+      {/* ══════════ SEND EMAIL ══════════ */}
       {tab === "queue" && (
         <>
-          <div className={`card${editingId !== null ? " card-editing" : ""}`}>
+          <div className="card">
             <div className="form-header">
               <div>
-                <h2>{editingId !== null ? "Edit Record" : "Add to Queue"}</h2>
-                <p className="subtitle">
-                  {editingId !== null
-                    ? "Update fields below, then save."
-                    : "Fill in the details — template auto-fills when you select a role."}
-                </p>
+                <h2>Send Email</h2>
+                <p className="subtitle">Fill in the details — template auto-fills when you select a role.</p>
               </div>
-              {editingId !== null && (
-                <button className="btn-secondary btn-sm" onClick={cancelEdit}>Cancel</button>
-              )}
             </div>
 
             {profile.name && (
@@ -684,127 +559,47 @@ export default function Home() {
               <div className="message-section">
                 <div className="message-section-header">
                   <div>
-                    <label style={{ marginBottom: 0 }}>Message Template</label>
+                    <label style={{ marginBottom: 0 }}>Email Message</label>
                     <p className="subtitle" style={{ marginBottom: 0 }}>
                       Templates auto-fill when you select a role.
-                      {variation.total > 1 && <span className="variation-badge">Template {variation.current}/{variation.total}</span>}
                     </p>
-                  </div>
-                  <div className="channel-toggle">
-                    <button type="button" className={`channel-btn${channel === "email" ? " active" : ""}`} onClick={() => setChannel("email")}>Email</button>
-                    <button type="button" className={`channel-btn${channel === "linkedin" ? " active" : ""}`} onClick={() => setChannel("linkedin")}>LinkedIn</button>
                   </div>
                 </div>
                 {loadingPreview && <div className="template-loading"><span className="spinner" /> Loading template...</div>}
-                {channel === "email" && <label>Subject <input type="text" value={form.custom_subject} onChange={e => updateForm("custom_subject", e.target.value)} placeholder="Subject auto-fills with template" /></label>}
-                <label>{channel === "email" ? "Body" : "LinkedIn Message"} <textarea value={form.custom_body} onChange={e => updateForm("custom_body", e.target.value)} placeholder="Template auto-fills when you select a role" rows={channel === "linkedin" ? 6 : 10} /></label>
-                {channel === "linkedin" && (
-                  <button type="button" className="btn-copy" onClick={() => {
-                    navigator.clipboard.writeText(form.custom_body || "");
-                    showFlash("Copied to clipboard!");
-                  }}>Copy to Clipboard</button>
-                )}
+                <label>Subject <input type="text" value={form.custom_subject} onChange={e => updateForm("custom_subject", e.target.value)} placeholder="Subject auto-fills with template" /></label>
+                <label>Body <textarea value={form.custom_body} onChange={e => updateForm("custom_body", e.target.value)} placeholder="Template auto-fills when you select a role" rows={10} /></label>
+              </div>
+
+              <div className="resume-upload-section">
+                <label>Resume Attachment</label>
+                <p className="subtitle" style={{ marginTop: 0, marginBottom: 8 }}>
+                  {uploadedResume
+                    ? `Using uploaded: ${uploadedResume.name}`
+                    : `Auto-generated resume for "${roles.find(r => r.key === form.role_key)?.title || form.role_key || "selected role"}" will be attached.`}
+                </p>
+                <div className="resume-upload-row">
+                  <label className="btn-upload-resume">
+                    {uploadedResume ? "Change File" : "Upload Resume"}
+                    <input type="file" accept=".pdf,.doc,.docx" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) setUploadedResume(file);
+                      e.target.value = "";
+                    }} style={{ display: "none" }} />
+                  </label>
+                  {uploadedResume && (
+                    <button type="button" className="btn-remove-resume" onClick={() => setUploadedResume(null)}>
+                      Remove &amp; use generated
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="actions">
-                {channel === "email" ? (
-                  <>
-                    <button type="submit" className="btn-send-direct" disabled={directSending || !form.to_email}>
-                      {directSending ? <><span className="spinner" />Sending...</> : "Send Email"}
-                    </button>
-                    <button type="button" className="btn-secondary" onClick={submitToQueue} disabled={queueLoading || !form.to_email}>
-                      {queueLoading && <span className="spinner" />}
-                      {editingId !== null ? "Update in Queue" : "Add to Queue"}
-                    </button>
-                    {editingId !== null && <button className="btn-secondary" type="button" onClick={cancelEdit}>Cancel</button>}
-                  </>
-                ) : (
-                  <div className="linkedin-note">
-                    <p>LinkedIn messages can&apos;t be sent via email. Copy the message above and paste it on LinkedIn.</p>
-                  </div>
-                )}
+                <button type="submit" className="btn-send-direct" disabled={directSending || !form.to_email}>
+                  {directSending ? <><span className="spinner" />Sending...</> : "Send Email"}
+                </button>
               </div>
             </form>
-          </div>
-
-          {/* Queue table */}
-          <div className="card">
-            <div className="queue-header">
-              <div>
-                <h2>Mail Queue</h2>
-                <p className="subtitle">{records.length} record{records.length !== 1 ? "s" : ""} waiting</p>
-              </div>
-              <div className="actions">
-                <button className="btn-send-all" onClick={sendAll} disabled={queueLoading || !records.length}>
-                  {queueLoading && <span className="spinner" />}
-                  Send All ({records.length})
-                </button>
-                {records.length > 0 && (
-                  <button className="btn-secondary" onClick={clearAllRecords} disabled={queueLoading}>Clear All</button>
-                )}
-              </div>
-            </div>
-
-            {records.length > 0 ? (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th><th>Email</th><th>CC</th><th>HR Name</th><th>Company</th><th>Role</th><th>Exp</th><th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((r, i) => {
-                      const roleName = roles.find(t => t.key === r.role_key)?.title || r.role_key.replace(/_/g, " ");
-                      const isSending = sending[r.id];
-                      const isEditing = editingId === r.id;
-                      const ccList = r.cc_emails ? r.cc_emails.split(",").map(e => e.trim()).filter(Boolean) : [];
-                      const isEditingCC = editingCC === r.id;
-                      return (
-                        <tr key={r.id} className={isSending ? "row-sending" : isEditing ? "row-editing" : ""}>
-                          <td className="cell-num">{i + 1}</td>
-                          <td className="cell-email">{r.to_email}</td>
-                          <td className="cell-cc">
-                            {isEditingCC ? (
-                              <div className="cc-edit-inline">
-                                <input type="text" value={ccDraft} onChange={e => setCcDraft(e.target.value)}
-                                  placeholder="cc1@co.com, cc2@co.com" className="cc-edit-input" autoFocus
-                                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveCC(r.id); } }} />
-                                <div className="cc-edit-btns">
-                                  <button className="btn-send btn-xs" onClick={() => saveCC(r.id)}>Save</button>
-                                  <button className="btn-delete btn-xs" onClick={() => setEditingCC(null)}>Cancel</button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="cc-cell-clickable" onClick={() => { setEditingCC(r.id); setCcDraft(r.cc_emails || ""); }} title="Click to edit CC">
-                                {ccList.length > 0
-                                  ? <div className="cc-tags">{ccList.map((cc, j) => <span key={j} className="cc-tag">{cc}</span>)}</div>
-                                  : <span className="cc-add-hint">+ CC</span>}
-                              </div>
-                            )}
-                          </td>
-                          <td>{r.hr_name || "—"}</td>
-                          <td>{r.company_name || "—"}</td>
-                          <td><span className="role-tag">{roleName}</span></td>
-                          <td>{r.experience_years || 4}yr</td>
-                          <td className="cell-actions">
-                            <button className="btn-send" onClick={() => sendOne(r.id)} disabled={isSending || queueLoading}>
-                              {isSending ? <><span className="spinner" />Sending</> : "Send"}
-                            </button>
-                            <button className="btn-edit" onClick={() => startEdit(r)} disabled={isSending || queueLoading}>Edit</button>
-                            <button className="btn-delete" onClick={() => deleteRecord(r.id)} disabled={isSending || queueLoading}>Del</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="empty-state">
-                <p>No records in queue. Add an email above to get started.</p>
-              </div>
-            )}
           </div>
         </>
       )}
@@ -832,14 +627,14 @@ export default function Home() {
             )}
 
             <div className="role-list">
-              {roles.map(r => (
+              {allRoles.map(r => (
                 <div key={r.key} className={`role-item${selectedRole === r.key ? " active" : ""}`}
                   onClick={() => setSelectedRole(r.key)}>
                   <strong>{r.title}</strong>
                   <span className="role-item-key">{r.key}</span>
                 </div>
               ))}
-              {!roles.length && <p className="empty-state">No roles yet. Connect Neon DB to manage roles.</p>}
+              {!allRoles.length && <p className="empty-state">No roles yet. Connect Neon DB to manage roles.</p>}
             </div>
           </div>
 

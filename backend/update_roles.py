@@ -573,8 +573,10 @@ def update_roles():
         for key, data in ROLE_DATA.items():
             role = db.query(Role).filter(Role.key == key).first()
             if not role:
-                print(f"  SKIP {key} (not found)")
-                continue
+                role = Role(key=key, title=data["title"], summary=data["summary"], sort_order=999)
+                db.add(role)
+                db.flush()
+                print(f"  NEW {key}: {data['title']}")
 
             role.title = data["title"]
             role.previous_title = ""

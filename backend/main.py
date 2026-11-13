@@ -49,7 +49,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Body, Depends, HTTPException
+from fastapi import FastAPI, Body, Depends, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, EmailStr
@@ -69,7 +69,7 @@ from resume_templates import (
     generate_pdf_resume,
     make_latex_resume,
 )
-from message_templates import get_message_template
+from message_templates import get_message_template, ACTIVE_ROLE_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -280,7 +280,7 @@ def _compose_message(hr_name: str, company_name: str,
         "experience_years": str(experience_years),
     }
 
-    tmpl = get_message_template(role_key, channel)
+    tmpl = get_message_template(role_key)
     subject = custom_subject if custom_subject else tmpl["subject"].format(**replacements)
     body = custom_body if custom_body else tmpl["body"].format(**replacements)
     return subject, body
@@ -481,12 +481,15 @@ def update_profile(data: dict = Body(...), neon_db: Session = Depends(_get_neon_
 
 
 @app.get("/roles")
-def get_roles():
+def get_roles(all: bool = False):
     if not NeonSessionLocal:
         return []
     db = NeonSessionLocal()
     try:
-        return list_templates(db=db)
+        roles = list_templates(db=db)
+        if all:
+            return roles
+        return [r for r in roles if r["key"] in ACTIVE_ROLE_KEYS]
     finally:
         db.close()
 
@@ -498,7 +501,6 @@ def message_preview(data: dict = Body(...)):
     company_name = data.get("company_name", "")
     role_title = data.get("role_title", "")
     experience_years = data.get("experience_years", 4)
-    channel = data.get("channel", "email")
 
     profile = _get_profile()
     at_company = f" at {company_name}" if company_name.strip() else ""
@@ -524,14 +526,11 @@ def message_preview(data: dict = Body(...)):
         "experience_years": str(experience_years),
     }
 
-    tmpl = get_message_template(role_key, channel)
+    tmpl = get_message_template(role_key)
 
     return {
         "subject": tmpl["subject"].format(**replacements),
         "body": tmpl["body"].format(**replacements),
-        "channel": channel,
-        "variation": tmpl.get("variation", 0),
-        "total_variations": tmpl.get("total_variations", 1),
     }
 
 
@@ -1102,18 +1101,20 @@ def send_all(db: Session = Depends(_get_db)):
 
 
 @app.post("/send-direct")
-def send_direct(data: dict = Body(...)):
-    to_email = data.get("to_email", "").strip()
+async def send_direct(
+    to_email: str = Form(...),
+    cc_emails: str = Form(""),
+    hr_name: str = Form(""),
+    company_name: str = Form(""),
+    role_key: str = Form("python_developer"),
+    experience_years: int = Form(4),
+    custom_subject: str = Form(""),
+    custom_body: str = Form(""),
+    resume_file: UploadFile | None = File(None),
+):
+    to_email = to_email.strip()
     if not to_email:
         raise HTTPException(status_code=400, detail="to_email is required")
-
-    cc_emails_str = data.get("cc_emails", "")
-    hr_name = data.get("hr_name", "")
-    company_name = data.get("company_name", "")
-    role_key = data.get("role_key", "python_developer")
-    experience_years = data.get("experience_years", 4)
-    custom_subject = data.get("custom_subject", "")
-    custom_body = data.get("custom_body", "")
 
     profile = _get_profile()
     from_email = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))
@@ -1125,7 +1126,7 @@ def send_direct(data: dict = Body(...)):
             detail=f"Invalid email: {to_result['reason']}",
         )
 
-    cc_list = _parse_cc_emails(cc_emails_str)
+    cc_list = _parse_cc_emails(cc_emails)
     valid_cc, skipped_cc = _validate_and_filter_cc(cc_list, from_email)
 
     subject, body = _compose_message(
@@ -1134,16 +1135,21 @@ def send_direct(data: dict = Body(...)):
         experience_years=experience_years,
     )
 
-    try:
-        pdf_bytes = _get_resume_for_send(role_key, experience_years)
-    except Exception:
-        pdf_bytes = _get_resume_for_send("python_developer", experience_years)
-
     name_slug = (profile.get("name") or "Resume").replace(" ", "_")
-    custom_resume_path = os.getenv("CUSTOM_RESUME_PATH", "").strip()
-    if custom_resume_path and Path(custom_resume_path).exists():
-        pdf_filename = f"{name_slug}_Resume.pdf"
+    used_uploaded = False
+
+    if resume_file and resume_file.filename:
+        pdf_bytes = await resume_file.read()
+        if not pdf_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded resume file is empty")
+        ext = Path(resume_file.filename).suffix or ".pdf"
+        pdf_filename = f"{name_slug}_Resume{ext}"
+        used_uploaded = True
     else:
+        try:
+            pdf_bytes = _get_resume_for_send(role_key, experience_years)
+        except Exception:
+            pdf_bytes = _get_resume_for_send("python_developer", experience_years)
         role_slug = _get_role_title(role_key).replace(" ", "_")
         pdf_filename = f"{name_slug}_{role_slug}_Resume.pdf"
 
@@ -1158,6 +1164,7 @@ def send_direct(data: dict = Body(...)):
         "to": to_email,
         "cc_sent": valid_cc,
         "skipped_cc": skipped_cc,
+        "resume": "uploaded" if used_uploaded else "generated",
     }
 
 
